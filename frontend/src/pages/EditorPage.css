@@ -1,0 +1,107 @@
+/* Prism.js Syntax Highlighting Overrides */
+.react-simple-code-editor__textarea {
+  font-family: 'Fira Code', 'Courier New', monospace !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+/* Syntax highlighting colors */
+code[class*='language-'],
+pre[class*='language-'] {
+  color: #abb2bf;
+  background: transparent;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+  tab-size: 4;
+  hyphens: none;
+}
+
+/* Keywords - Blue */
+.token.keyword,
+.token.selector,
+.token.important,
+.token.atrule {
+  color: #61afef;
+}
+
+/* Functions and identifiers - Yellow */
+.token.function,
+.token.function-variable {
+  color: #e5c07b;
+}
+
+/* Strings - Green */
+.token.string,
+.token.attr-value {
+  color: #98c379;
+}
+
+/* Comments - Gray */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #5c6370;
+}
+
+/* Numbers - Orange */
+.token.number,
+.token.constant {
+  color: #d19a66;
+}
+
+/* Operators - White/Gray */
+.token.operator,
+.token.punctuation {
+  color: #abb2bf;
+}
+
+/* Tags - Red/Pink */
+.token.tag,
+.token.boolean {
+  color: #e06c75;
+}
+
+/* Attributes - Yellow */
+.token.attr-name,
+.token.property {
+  color: #e5c07b;
+}
+
+/* Class names */
+.token.class-name {
+  color: #61afef;
+}
+
+/* Variable */
+.token.variable {
+  color: #e06c75;
+}
+
+/* Regex - Light Red */
+.token.regex {
+  color: #e45649;
+}
+
+/* Editor container styling */
+.react-simple-code-editor__pre {
+  background: #282c34 !important;
+  color: #abb2bf !important;
+}
+
+.react-simple-code-editor__textarea {
+  background: transparent !important;
+  color: transparent !important;
+  caret-color: #61afef !important;
+}
+
+/* Line number styling */
+.prism-linenumber {
+  color: #5c6370;
+  user-select: none;
+}

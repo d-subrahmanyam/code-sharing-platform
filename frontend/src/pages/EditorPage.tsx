@@ -2,7 +2,21 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
-import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
+import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight, FiEyeOff } from 'react-icons/fi'
+import Editor from 'react-simple-code-editor'
+import Prism from 'prismjs'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-python'
+import 'prismjs/components/prism-java'
+import 'prismjs/components/prism-cpp'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-markup'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-sql'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-go'
+import 'prismjs/themes/prism-tomorrow.css'
+import './EditorPage.css'
 
 /**
  * Editor Page Component
@@ -15,7 +29,7 @@ const EditorPage: React.FC = () => {
 
   const [isNew] = useState(snippetId === 'new')
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'code' | 'preview' | 'comments'>('code')
+  const [showPreview, setShowPreview] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -315,78 +329,79 @@ const EditorPage: React.FC = () => {
 
         {/* Main Editor Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Tabs */}
-          <div className="flex border-b border-gray-700">
-            {(['code', 'preview', 'comments'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-3 font-medium transition-colors ${
-                  activeTab === tab
-                    ? 'text-blue-400 border-b-2 border-blue-400'
-                    : 'text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
+          {/* Toggle Button */}
+          <div className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-300">
+                {showPreview ? 'Preview' : 'Code Editor'}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+              title={showPreview ? 'Show code editor' : 'Show preview'}
+            >
+              {showPreview ? (
+                <>
+                  <FiCode size={18} />
+                  Show Code
+                </>
+              ) : (
+                <>
+                  <FiEye size={18} />
+                  Preview
+                </>
+              )}
+            </button>
           </div>
 
-          {/* Tab Content */}
+          {/* Editor / Preview Content */}
           <div className="flex-1 overflow-hidden">
-            {activeTab === 'code' && (
-              <textarea
-                value={formData.code}
-                onChange={handleFormChange}
-                name="code"
-                placeholder="Paste your code here..."
-                className="w-full h-full p-4 bg-gray-900 text-gray-100 font-mono text-sm border-none outline-none resize-none"
-              />
-            )}
-
-            {activeTab === 'preview' && (
-              <div className="p-6 overflow-auto">
-                <div className="bg-gray-800 rounded p-4 text-white font-mono text-sm whitespace-pre-wrap break-words">
-                  {formData.code || 'Code preview will appear here...'}
-                </div>
+            {!showPreview ? (
+              <div className="w-full h-full overflow-auto bg-gray-900">
+                <Editor
+                  value={formData.code}
+                  onValueChange={(code) => setFormData(prev => ({ ...prev, code }))}
+                  highlight={(code) => {
+                    const languageMap: { [key: string]: string } = {
+                      'javascript': 'javascript',
+                      'python': 'python',
+                      'java': 'java',
+                      'cpp': 'cpp',
+                      'typescript': 'typescript',
+                      'html': 'markup',
+                      'css': 'css',
+                      'sql': 'sql',
+                      'bash': 'bash',
+                      'go': 'go',
+                    }
+                    const lang = languageMap[formData.language] || 'javascript'
+                    try {
+                      return Prism.highlight(code, Prism.languages[lang] || Prism.languages.javascript, lang)
+                    } catch (error) {
+                      return code
+                    }
+                  }}
+                  padding={16}
+                  textareaClassName="focus:outline-none"
+                  className="!bg-gray-900 !text-gray-100 !font-mono !text-sm !leading-6"
+                  style={{
+                    fontFamily: '"Fira Code", "Courier New", monospace',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                  }}
+                  placeholder="Paste your code here..."
+                />
               </div>
-            )}
-
-            {activeTab === 'comments' && (
-              <div className="p-6 space-y-4 overflow-auto">
-                {comments.length === 0 ? (
-                  <p className="text-gray-400">No comments yet. Be the first to comment!</p>
-                ) : (
-                  comments.map((comment: any) => (
-                    <div
-                      key={comment.id}
-                      className="bg-gray-800 rounded p-4 text-white"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold">
-                          {comment.author?.username || 'Anonymous'}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {new Date(comment.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-gray-300">{comment.content}</p>
-                    </div>
-                  ))
-                )}
-
-                {currentUser && (
-                  <div className="mt-6 bg-gray-800 rounded p-4">
-                    <textarea
-                      placeholder="Add a comment..."
-                      rows={3}
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                    />
-                    <button className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
-                      Post Comment
-                    </button>
-                  </div>
-                )}
+            ) : (
+              <div className="p-6 overflow-auto bg-gray-900">
+                <div className="bg-gray-800 rounded-lg p-6 text-gray-100 font-mono text-sm whitespace-pre-wrap break-words border border-gray-700">
+                  {formData.code || (
+                    <span className="text-gray-500 italic">
+                      Your code preview will appear here...
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
