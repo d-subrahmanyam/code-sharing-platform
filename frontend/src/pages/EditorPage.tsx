@@ -8,6 +8,7 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
+import { UserJoinBubble } from '../components/UserJoinBubble'
 import './EditorPage.css'
 
 /**
@@ -34,6 +35,8 @@ const EditorPage: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [shareableUrl, setShareableUrl] = useState<string | null>(null)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [activeUsers, setActiveUsers] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
+  const [userNotifications, setUserNotifications] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -136,6 +139,56 @@ const EditorPage: React.FC = () => {
       })
     }
   }, [snippet, isNew])
+
+  // Track user presence in the snippet
+  useEffect(() => {
+    if (resolvedSnippetId && resolvedSnippetId !== 'new') {
+      // Store this user's presence in localStorage for cross-window communication
+      const userId = Math.random().toString(36).substr(2, 9)
+      const username = `User ${userId.substring(0, 4)}`
+      
+      const presenceKey = `presence_${resolvedSnippetId}`
+      const currentPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
+      
+      // Add current user if not already present
+      if (!currentPresence.find((u: any) => u.id === userId)) {
+        currentPresence.push({
+          id: userId,
+          username: username,
+          timestamp: new Date().toISOString()
+        })
+        localStorage.setItem(presenceKey, JSON.stringify(currentPresence))
+        
+        // Show notification for other users
+        const newUser = { id: userId, username: username, timestamp: new Date() }
+        setUserNotifications(prev => [...prev, newUser])
+      }
+
+      // Listen for storage changes (other windows/tabs)
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === presenceKey && e.newValue) {
+          const newPresence = JSON.parse(e.newValue)
+          setActiveUsers(newPresence.map((u: any) => ({
+            ...u,
+            timestamp: new Date(u.timestamp)
+          })))
+        }
+      }
+
+      window.addEventListener('storage', handleStorageChange)
+
+      return () => {
+        window.removeEventListener('storage', handleStorageChange)
+        // Clean up presence on unmount
+        const updatedPresence = currentPresence.filter((u: any) => u.id !== userId)
+        if (updatedPresence.length > 0) {
+          localStorage.setItem(presenceKey, JSON.stringify(updatedPresence))
+        } else {
+          localStorage.removeItem(presenceKey)
+        }
+      }
+    }
+  }, [resolvedSnippetId])
 
   const languages = [
     'javascript',
@@ -564,6 +617,37 @@ const EditorPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* User Join Bubbles - Display at bottom right */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-3 pointer-events-none z-50">
+        {userNotifications.map((user) => (
+          <UserJoinBubble
+            key={`${user.id}-${user.timestamp.getTime()}`}
+            notification={{
+              id: user.id,
+              username: user.username,
+              timestamp: user.timestamp,
+            }}
+            onDismiss={() => {
+              setUserNotifications(prev => prev.filter(u => u.id !== user.id || u.timestamp !== user.timestamp))
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Active Users Indicator - Display in header */}
+      {activeUsers.length > 1 && (
+        <div className="fixed top-20 right-6 bg-blue-900 border border-blue-700 rounded-lg px-4 py-3 text-blue-100 text-sm pointer-events-auto z-40">
+          <div className="font-semibold flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            {activeUsers.length} {activeUsers.length === 1 ? 'user' : 'users'} viewing
+          </div>
+          <div className="mt-1 text-xs text-blue-200">
+            {activeUsers.slice(0, 3).map(u => u.username).join(', ')}
+            {activeUsers.length > 3 && ` +${activeUsers.length - 3}`}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
