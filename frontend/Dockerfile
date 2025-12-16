@@ -24,8 +24,15 @@ RUN npm run build
 # Production stage - serve with nginx
 FROM nginx:alpine
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install curl and openssl for health checks and cert verification
+RUN apk add --no-cache curl openssl
+
+# Create certs directory
+RUN mkdir -p /etc/nginx/certs
+
+# Copy self-signed certificates
+COPY certs/cert.pem /etc/nginx/certs/cert.pem
+COPY certs/key.pem /etc/nginx/certs/key.pem
 
 # Copy nginx configuration
 COPY frontend/nginx.conf /etc/nginx/nginx.conf
@@ -33,12 +40,12 @@ COPY frontend/nginx.conf /etc/nginx/nginx.conf
 # Copy built application from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose port
-EXPOSE 80
+# Expose ports
+EXPOSE 80 443
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:80/ || exit 1
+  CMD curl -f -k https://localhost/index.html || curl -f http://localhost/index.html || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

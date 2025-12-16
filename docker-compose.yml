@@ -65,6 +65,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/src:/app/src
+      - ./certs:/app/certs:ro
     networks:
       - code-sharing-network
     restart: unless-stopped
@@ -76,12 +77,15 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: code-sharing-frontend
     environment:
-      VITE_API_BASE_URL: http://localhost:8080/api
-      VITE_WS_URL: ws://localhost:8080
+      VITE_API_BASE_URL: https://localhost:8080/api
+      VITE_WS_URL: wss://localhost:8080
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - backend
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
     networks:
       - code-sharing-network
     restart: unless-stopped

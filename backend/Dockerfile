@@ -18,8 +18,15 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install curl and openssl for health checks and cert conversion
+RUN apk add --no-cache curl openssl
+
+# Copy self-signed certificates
+COPY certs/ /app/certs/
+
+# Create PKCS12 keystore from PEM certificates
+RUN openssl pkcs12 -export -in /app/certs/cert.pem -inkey /app/certs/key.pem \
+    -out /app/certs/keystore.p12 -name localhost -passout pass:changeit
 
 # Copy JAR from builder
 COPY --from=builder /app/target/code-sharing-platform-*.jar app.jar
