@@ -142,12 +142,15 @@ const EditorPage: React.FC = () => {
 
   // Track user presence in the snippet
   useEffect(() => {
-    if (resolvedSnippetId && resolvedSnippetId !== 'new') {
+    // Use tinyCode for new snippets, resolvedSnippetId for existing snippets
+    const presenceTrackingId = tinyCode || resolvedSnippetId
+    
+    if (presenceTrackingId && presenceTrackingId !== 'new') {
       // Store this user's presence in localStorage for cross-window communication
       const userId = Math.random().toString(36).substr(2, 9)
       const username = `User ${userId.substring(0, 4)}`
       
-      const presenceKey = `presence_${resolvedSnippetId}`
+      const presenceKey = `presence_${presenceTrackingId}`
       const currentPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
       
       // Track how many users were present before we added ourselves
@@ -232,7 +235,7 @@ const EditorPage: React.FC = () => {
         setUserNotifications([])
       }
     }
-  }, [resolvedSnippetId])
+  }, [tinyCode, resolvedSnippetId])
 
   const languages = [
     'javascript',
