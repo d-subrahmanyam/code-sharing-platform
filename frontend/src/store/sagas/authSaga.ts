@@ -12,7 +12,7 @@ import {
   AUTH_REGISTER_FAILURE,
 } from '../actionTypes'
 import apiClient from '@api/client'
-import { LoginCredentials, RegisterCredentials } from '@types/redux'
+import type { LoginCredentials, RegisterCredentials } from '../../types/redux'
 
 /**
  * Login saga worker function

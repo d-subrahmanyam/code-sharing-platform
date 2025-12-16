@@ -11,7 +11,7 @@ import {
   AUTH_REGISTER_SUCCESS,
   AUTH_REGISTER_FAILURE,
 } from '../actionTypes'
-import { AuthState, User } from '@types/redux'
+import type { AuthState } from '../../types/redux'
 
 const initialState: AuthState = {
   isAuthenticated: !!localStorage.getItem('authToken'),

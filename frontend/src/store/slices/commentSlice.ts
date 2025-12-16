@@ -10,7 +10,7 @@ import {
   COMMENT_CREATE_SUCCESS,
   COMMENT_CREATE_FAILURE,
 } from '../actionTypes'
-import { CommentState } from '@types/redux'
+import type { CommentState } from '../../types/redux'
 
 const initialState: CommentState = {
   items: [],

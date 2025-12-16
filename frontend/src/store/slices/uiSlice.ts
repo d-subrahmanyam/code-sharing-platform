@@ -3,7 +3,7 @@
  * Manages UI state including notifications and theme preferences
  */
 import { SHOW_NOTIFICATION, HIDE_NOTIFICATION } from '../actionTypes'
-import { UIState, Notification } from '@types/redux'
+import type { UIState } from '../../types/redux'
 import { generateId } from '@utils/helpers'
 
 const initialState: UIState = {

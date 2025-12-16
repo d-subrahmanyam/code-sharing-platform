@@ -16,7 +16,7 @@ import {
   SNIPPET_DELETE_SUCCESS,
   SNIPPET_DELETE_FAILURE,
 } from '../actionTypes'
-import { SnippetState, CodeSnippet } from '@types/redux'
+import type { SnippetState } from '../../types/redux'
 
 const initialState: SnippetState = {
   items: [],
