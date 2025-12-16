@@ -254,6 +254,79 @@ const EditorPage: React.FC = () => {
     }
   }, [tinyCode, resolvedSnippetId, userId, displayUsername])
 
+  // Track code changes and sync across windows
+  useEffect(() => {
+    const presenceTrackingId = tinyCode || resolvedSnippetId
+    
+    if (!presenceTrackingId || presenceTrackingId === 'new') {
+      return
+    }
+
+    const codeKey = `code_${presenceTrackingId}`
+    
+    // Listen for code changes from other windows
+    const handleCodeChange = (e: StorageEvent) => {
+      if (e.key === codeKey && e.newValue) {
+        try {
+          const codeData = JSON.parse(e.newValue)
+          console.log('Code change detected from another window', { code: codeData.code.substring(0, 50) })
+          // Update the code in the editor from other window's changes
+          setFormData(prev => ({
+            ...prev,
+            code: codeData.code,
+            language: codeData.language || prev.language,
+          }))
+        } catch (error) {
+          console.error('Error parsing code change', error)
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleCodeChange)
+
+    return () => {
+      window.removeEventListener('storage', handleCodeChange)
+    }
+  }, [tinyCode, resolvedSnippetId])
+
+  // Debounce code changes to avoid excessive localStorage writes
+  const codeChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  
+  const handleCodeChange = (code: string) => {
+    // Update local state immediately for responsive UI
+    setFormData(prev => ({ ...prev, code }))
+    
+    // Debounce the localStorage update
+    if (codeChangeTimeoutRef.current) {
+      clearTimeout(codeChangeTimeoutRef.current)
+    }
+    
+    codeChangeTimeoutRef.current = setTimeout(() => {
+      const presenceTrackingId = tinyCode || resolvedSnippetId
+      if (presenceTrackingId && presenceTrackingId !== 'new') {
+        const codeKey = `code_${presenceTrackingId}`
+        const codeData = {
+          code,
+          language: formData.language,
+          timestamp: new Date().toISOString(),
+          userId,
+          username: displayUsername || `User ${userId.substring(0, 4)}`
+        }
+        localStorage.setItem(codeKey, JSON.stringify(codeData))
+        console.log('Code change saved to localStorage', { codeKey, codeLength: code.length })
+      }
+    }, 300) // 300ms debounce to reduce localStorage writes
+  }
+
+  // Cleanup code change timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (codeChangeTimeoutRef.current) {
+        clearTimeout(codeChangeTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const languages = [
     'javascript',
     'python',
@@ -698,7 +771,7 @@ const EditorPage: React.FC = () => {
               <div className="w-full h-full overflow-auto bg-gray-900">
                 <Editor
                   value={formData.code}
-                  onValueChange={(code) => setFormData(prev => ({ ...prev, code }))}
+                  onValueChange={handleCodeChange}
                   highlight={(code) => {
                     const languageMap: { [key: string]: string } = {
                       'javascript': 'javascript',
