@@ -57,11 +57,6 @@ spring:
 # Server Configuration
 server:
   port: 8080
-  ssl:
-    key-store: /app/certs/keystore.p12
-    key-store-password: changeit
-    key-store-type: PKCS12
-    key-alias: localhost
   servlet:
     context-path: /api
   shutdown: graceful
