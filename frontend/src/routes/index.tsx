@@ -20,6 +20,10 @@ export const router = createBrowserRouter([
     element: <EditorPage />,
   },
   {
+    path: '/join/:tinyCode',
+    element: <EditorPage />,
+  },
+  {
     path: '/login',
     element: <LoginPage />,
   },

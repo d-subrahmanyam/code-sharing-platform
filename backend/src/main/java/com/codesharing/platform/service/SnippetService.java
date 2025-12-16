@@ -116,6 +116,110 @@ public class SnippetService {
         return 0;
     }
 
+    /**
+     * Get snippet ID by tiny code
+     * Resolves a short code to the actual snippet ID
+     *
+     * @param tinyCode The 6-character tiny code
+     * @return The snippet ID or null if not found
+     */
+    public String getSnippetIdByTinyCode(String tinyCode) {
+        try {
+            var tinyUrl = tinyUrlRepository.findByShortCode(tinyCode);
+            
+            if (tinyUrl.isPresent()) {
+                var url = tinyUrl.get();
+                // Check if the URL has expired
+                if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(LocalDateTime.now())) {
+                    return null; // Expired
+                }
+                return url.getSnippetId();
+            }
+        } catch (Exception e) {
+            // Log error if needed
+        }
+        return null;
+    }
+
+    /**
+     * Create or get a tiny code for a snippet
+     * Generates a new tiny code if one doesn't exist, or returns the existing one
+     *
+     * @param snippetId The snippet ID
+     * @param userId The user ID
+     * @return The tiny code or null if snippet doesn't exist
+     */
+    public String createOrGetTinyCode(String snippetId, String userId) {
+        try {
+            // Check if snippet exists
+            CodeSnippet snippet = mongoTemplate.findById(snippetId, CodeSnippet.class);
+            if (snippet == null) {
+                return null;
+            }
+
+            // Check if a tiny code already exists for this snippet
+            var existing = tinyUrlRepository.findBySnippetId(snippetId);
+            if (existing.isPresent()) {
+                var url = existing.get();
+                // Check if expired
+                if (url.getExpiresAt() == null || url.getExpiresAt().isAfter(LocalDateTime.now())) {
+                    return url.getShortCode();
+                }
+            }
+
+            // Generate a new tiny code
+            String tinyCode = generateUniqueTinyCode();
+
+            var tinyUrl = new com.codesharing.platform.entity.TinyUrl();
+            tinyUrl.setId(UUID.randomUUID().toString());
+            tinyUrl.setShortCode(tinyCode);
+            tinyUrl.setSnippetId(snippetId);
+            tinyUrl.setUserId(userId);
+            tinyUrl.setCreatedAt(LocalDateTime.now());
+            // No expiration by default, or set 30 days expiration
+            // tinyUrl.setExpiresAt(LocalDateTime.now().plusDays(30));
+
+            tinyUrlRepository.save(tinyUrl);
+            return tinyCode;
+        } catch (Exception e) {
+            // Log error if needed
+        }
+        return null;
+    }
+
+    /**
+     * Generate a unique tiny code
+     * Ensures the code doesn't already exist in the database
+     *
+     * @return A unique 6-character alphanumeric code
+     */
+    private String generateUniqueTinyCode() {
+        String code;
+        do {
+            code = generateRandomTinyCode();
+        } while (tinyUrlRepository.findByShortCode(code).isPresent());
+
+        return code;
+    }
+
+    /**
+     * Generate a random 6-character alphanumeric code
+     * Similar to the frontend implementation
+     *
+     * @return A 6-character code
+     */
+    private String generateRandomTinyCode() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder code = new StringBuilder();
+        Random random = new Random();
+
+        for (int i = 0; i < 6; i++) {
+            code.append(chars.charAt(random.nextInt(chars.length())));
+        }
+
+        return code.toString();
+    }
+
     private SnippetDTO convertToDTO(CodeSnippet snippet) {
         Optional<User> user = userRepository.findById(snippet.getAuthorId());
         String authorUsername = user.map(User::getUsername).orElse("Anonymous");

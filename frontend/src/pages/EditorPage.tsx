@@ -6,18 +6,26 @@ import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiC
 import Editor from 'react-simple-code-editor'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
+import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode } from '../utils/tinyUrl'
+import { logger } from '../utils/logger'
 import './EditorPage.css'
 
 /**
  * Editor Page Component
  * Main editor interface for viewing and editing code snippets with real-time collaboration
+ * Supports loading snippets from:
+ * - Direct snippet ID: /editor/:snippetId
+ * - Tiny/Shortened URL: /join/:tinyCode
  */
 const EditorPage: React.FC = () => {
-  const { snippetId } = useParams()
+  const { snippetId: directSnippetId, tinyCode } = useParams<{ snippetId?: string; tinyCode?: string }>()
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
-  const [isNew] = useState(snippetId === 'new')
+  const [resolvedSnippetId, setResolvedSnippetId] = useState<string | null>(directSnippetId || null)
+  const [isResolving, setIsResolving] = useState(false)
+  const [resolutionError, setResolutionError] = useState<string | null>(null)
+  const [isNew] = useState(resolvedSnippetId === 'new')
   const [isSaving, setIsSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -35,18 +43,67 @@ const EditorPage: React.FC = () => {
   const [currentUser] = useState(null) // In real app, get from Redux auth state
 
   const snippet = useSelector((state: any) =>
-    isNew ? null : state.snippet?.items.find((s: any) => s.id === snippetId)
+    isNew ? null : state.snippet?.items.find((s: any) => s.id === resolvedSnippetId)
   )
   const comments = useSelector((state: any) => state.comment?.items || [])
 
+  // Resolve tiny code to snippet ID on mount or when tinyCode changes
   useEffect(() => {
-    if (!isNew && snippetId) {
+    if (tinyCode && isValidTinyCode(tinyCode)) {
+      setIsResolving(true)
+      setResolutionError(null)
+
+      const resolveTinyCode = async () => {
+        try {
+          logger.debug('Resolving tiny code', { tinyCode })
+
+          // Check session storage first for cached mapping
+          const cached = getTinyCodeMapping(tinyCode)
+          if (cached) {
+            logger.info('Tiny code resolved from cache', { tinyCode, snippetId: cached })
+            setResolvedSnippetId(cached)
+            setIsResolving(false)
+            return
+          }
+
+          // Query backend for the mapping
+          const snippetId = await lookupSnippetByTinyCode(tinyCode)
+
+          if (!snippetId) {
+            const error = `Snippet not found for code: ${tinyCode}`
+            logger.warn('Tiny code resolution failed', { tinyCode, error })
+            setResolutionError(error)
+            setIsResolving(false)
+            return
+          }
+
+          // Store in session storage for future lookups
+          storeTinyCodeMapping(tinyCode, snippetId)
+
+          logger.success('Tiny code resolved successfully', { tinyCode, snippetId })
+          setResolvedSnippetId(snippetId)
+          setResolutionError(null)
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+          logger.error('Error resolving tiny code', error, { tinyCode })
+          setResolutionError(errorMsg)
+        } finally {
+          setIsResolving(false)
+        }
+      }
+
+      resolveTinyCode()
+    }
+  }, [tinyCode])
+
+  useEffect(() => {
+    if (!isNew && resolvedSnippetId && !tinyCode) {
       dispatch({
         type: SNIPPET_FETCH_REQUEST,
-        payload: { id: snippetId },
+        payload: { id: resolvedSnippetId },
       } as any)
     }
-  }, [snippetId, isNew, dispatch])
+  }, [resolvedSnippetId, isNew, tinyCode, dispatch])
 
   useEffect(() => {
     if (snippet && !isNew) {
@@ -128,7 +185,7 @@ const EditorPage: React.FC = () => {
         dispatch({
           type: SNIPPET_UPDATE_REQUEST,
           payload: {
-            id: snippetId,
+            id: resolvedSnippetId,
             ...formData,
           },
         } as any)
@@ -147,6 +204,29 @@ const EditorPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Resolution Status - Loading or Error */}
+      {isResolving && (
+        <div className="bg-blue-900 border-b border-blue-700 px-6 py-3 flex items-center gap-3 text-blue-200">
+          <div className="animate-spin h-5 w-5 border-2 border-blue-400 border-t-transparent rounded-full"></div>
+          <span>Loading snippet from tiny code...</span>
+        </div>
+      )}
+
+      {resolutionError && (
+        <div className="bg-red-900 border-b border-red-700 px-6 py-3 flex items-center justify-between text-red-200">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">⚠️</span>
+            <span>{resolutionError}</span>
+          </div>
+          <button
+            onClick={() => navigate('/')}
+            className="px-4 py-1 bg-red-700 hover:bg-red-600 text-white rounded text-sm transition-colors"
+          >
+            Go Home
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
