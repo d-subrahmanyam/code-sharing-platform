@@ -1,6 +1,6 @@
 # Code Sharing Platform
 
-A real-time collaborative code-sharing platform similar to codefile.io, enabling users to share, edit, and collaborate on code snippets with syntax highlighting and threaded discussions.
+A real-time collaborative code-sharing platform enabling users to share, edit, and collaborate on code snippets with syntax highlighting and threaded discussions.
 
 ## Features
 
