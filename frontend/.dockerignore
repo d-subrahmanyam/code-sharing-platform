@@ -1,0 +1,19 @@
+# Frontend Docker ignore
+node_modules/
+dist/
+.git/
+.gitignore
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+coverage/
+.turbo/
+backend/
+docs/

@@ -92,7 +92,26 @@ code-sharing-platform/
 
 ## Getting Started
 
-### Prerequisites
+### Option 1: Docker Compose (Recommended)
+
+The quickest way to get started:
+
+```bash
+git clone <repository-url>
+cd code-sharing-platform
+docker-compose up -d
+```
+
+The application will be available at:
+- Frontend: http://localhost
+- Backend API: http://localhost:8080/api
+- GraphQL: http://localhost:8080/api/graphiql
+
+See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker instructions.
+
+### Option 2: Local Development
+
+#### Prerequisites
 - Node.js 18+ (for frontend)
 - Java 21+ (for backend)
 - Maven 3.8+
@@ -100,7 +119,7 @@ code-sharing-platform/
 - PostgreSQL
 - Git
 
-### Setup
+#### Setup
 
 1. Clone the repository:
 ```bash
