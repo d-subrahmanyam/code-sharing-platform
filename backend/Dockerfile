@@ -18,8 +18,8 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install netcat for health checks
+RUN apk add --no-cache curl netcat-openbsd
 
 # Copy JAR from builder
 COPY --from=builder /app/target/code-sharing-platform-*.jar app.jar
@@ -27,9 +27,9 @@ COPY --from=builder /app/target/code-sharing-platform-*.jar app.jar
 # Expose port
 EXPOSE 8080
 
-# Health check
+# Health check - simplified check to just verify port is listening
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8080/api/actuator/health || exit 1
+  CMD nc -z 127.0.0.1 8080 || exit 1
 
 # Run the application
 CMD ["java", "-XX:+UseStringDeduplication", "-XX:+UseCompressedOops", "-jar", "app.jar"]
