@@ -9,6 +9,7 @@ import 'highlight.js/styles/atom-one-dark.css'
 import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
 import { UserJoinBubble } from '../components/UserJoinBubble'
+import { ActiveUsers, type ActiveUser } from '../components/ActiveUsers'
 import { useWebSocketCollaboration } from '../hooks/useWebSocketCollaboration'
 import './EditorPage.css'
 
@@ -418,11 +419,11 @@ const EditorPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-gray-900 dark:bg-black flex flex-col transition-colors">
       {/* Username Dialog */}
       {showUsernameDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 border-2 border-blue-500 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+          <div className="bg-gray-800 dark:bg-gray-900 border-2 border-blue-500 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h2 className="text-2xl font-bold text-white mb-4">Enter Your Username</h2>
             <p className="text-gray-300 mb-6">Your username will be shown when you join a collaborative session</p>
             <input
@@ -432,7 +433,7 @@ const EditorPage: React.FC = () => {
               onChange={(e) => setUsernameInput(e.target.value)}
               onKeyPress={handleUsernameKeyPress}
               autoFocus
-              className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:border-blue-500 focus:outline-none mb-4"
+              className="w-full px-4 py-2 bg-gray-700 dark:bg-gray-800 text-white border border-gray-600 rounded-lg focus:border-blue-500 focus:outline-none mb-4"
             />
             <div className="flex gap-3">
               <button
@@ -443,7 +444,7 @@ const EditorPage: React.FC = () => {
               </button>
               <button
                 onClick={handleUsernameSkip}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-semibold transition-colors"
+                className="flex-1 px-4 py-2 bg-gray-700 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-700 text-gray-300 rounded-lg font-semibold transition-colors"
               >
                 Skip
               </button>
@@ -454,21 +455,21 @@ const EditorPage: React.FC = () => {
 
       {/* Resolution Status - Loading or Error */}
       {isResolving && (
-        <div className="bg-blue-900 border-b border-blue-700 px-6 py-3 flex items-center gap-3 text-blue-200">
+        <div className="bg-blue-900 dark:bg-blue-950 border-b border-blue-700 dark:border-blue-800 px-6 py-3 flex items-center gap-3 text-blue-200">
           <div className="animate-spin h-5 w-5 border-2 border-blue-400 border-t-transparent rounded-full"></div>
           <span>Loading snippet from tiny code...</span>
         </div>
       )}
 
       {resolutionError && (
-        <div className="bg-red-900 border-b border-red-700 px-6 py-3 flex items-center justify-between text-red-200">
+        <div className="bg-red-900 dark:bg-red-950 border-b border-red-700 dark:border-red-800 px-6 py-3 flex items-center justify-between text-red-200">
           <div className="flex items-center gap-3">
             <span className="text-lg">⚠️</span>
             <span>{resolutionError}</span>
           </div>
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-1 bg-red-700 hover:bg-red-600 text-white rounded text-sm transition-colors"
+            className="px-4 py-1 bg-red-700 dark:bg-red-800 hover:bg-red-600 dark:hover:bg-red-700 text-white rounded text-sm transition-colors"
           >
             Go Home
           </button>
@@ -476,7 +477,7 @@ const EditorPage: React.FC = () => {
       )}
 
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+      <header className="bg-gray-800 dark:bg-gray-900 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/')}
@@ -489,13 +490,17 @@ const EditorPage: React.FC = () => {
             {isNew ? 'New Snippet' : formData.title || 'Untitled Snippet'}
           </h1>
         </div>
-        <div className="flex items-center gap-3">
-          {displayUsername && (
-            <div className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              {displayUsername}
-            </div>
-          )}
+        <div className="flex items-center gap-6">
+          {/* Active Users Display */}
+          <ActiveUsers users={activeUsers} />
+
+          <div className="flex items-center gap-3">
+            {displayUsername && (
+              <div className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                {displayUsername}
+              </div>
+            )}
           {shareableUrl && (
             <button
               onClick={() => setShowShareModal(true)}
