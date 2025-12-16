@@ -9,6 +9,7 @@ import 'highlight.js/styles/atom-one-dark.css'
 import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
 import { UserJoinBubble } from '../components/UserJoinBubble'
+import { useWebSocketCollaboration } from '../hooks/useWebSocketCollaboration'
 import './EditorPage.css'
 
 /**
@@ -37,6 +38,7 @@ const EditorPage: React.FC = () => {
   const [showShareModal, setShowShareModal] = useState(false)
   const [activeUsers, setActiveUsers] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
   const [userNotifications, setUserNotifications] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
+  const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; username: string }>>([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -161,97 +163,128 @@ const EditorPage: React.FC = () => {
     }
   }, [snippet, isNew])
 
-  // Track user presence in the snippet
+  // Use WebSocket for real-time collaboration
+  const collaborationId = tinyCode || resolvedSnippetId
+  const notifiedUserIdsRef = useRef<Set<string>>(new Set())
+  
+  const { sendCodeChange, sendTypingIndicator } = useWebSocketCollaboration(
+    collaborationId,
+    userId,
+    displayUsername,
+    (users) => {
+      console.log('[WebSocket] Presence update received:', users)
+      const newUsers = users.map((u: any) => ({
+        id: u.userId,
+        username: u.username,
+        timestamp: new Date(u.joinedAt),
+      }))
+      setActiveUsers(newUsers)
+      
+      // Show notifications for new users (that we haven't seen before)
+      users.forEach((user: any) => {
+        if (user.userId !== userId && !notifiedUserIdsRef.current.has(user.userId)) {
+          notifiedUserIdsRef.current.add(user.userId)
+          console.log('[WebSocket] New user notification:', user.username)
+          setUserNotifications(prev => [...prev, {
+            id: user.userId,
+            username: user.username,
+            timestamp: new Date(),
+          }])
+        }
+      })
+    },
+    (change) => {
+      console.log('[WebSocket] Code change received from:', change.username)
+      // Only update code if it's from another user
+      if (change.userId !== userId) {
+        setFormData(prev => ({
+          ...prev,
+          code: change.code,
+          language: change.language,
+        }))
+      }
+    },
+    (typingUsers) => {
+      console.log('[WebSocket] Typing users:', typingUsers)
+      // Filter out current user
+      setTypingUsers(typingUsers.filter((u: any) => u.userId !== userId))
+    }
+  )
+
+  // Debounce code changes for auto-save
+  const codeChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  
+  const handleCodeChange = (code: string) => {
+    // Update local state immediately for responsive UI
+    setFormData(prev => ({ ...prev, code }))
+    
+    // Send typing indicator
+    sendTypingIndicator(true)
+    console.log('[WebSocket] Sending typing indicator: true')
+    
+    // Clear typing indicator after 1 second of inactivity
+    if (typingIndicatorTimeoutRef.current) {
+      clearTimeout(typingIndicatorTimeoutRef.current)
+    }
+    typingIndicatorTimeoutRef.current = setTimeout(() => {
+      sendTypingIndicator(false)
+      console.log('[WebSocket] Sending typing indicator: false')
+    }, 1000)
+    
+    // Debounce the code change broadcast and auto-save
+    if (codeChangeTimeoutRef.current) {
+      clearTimeout(codeChangeTimeoutRef.current)
+    }
+    
+    codeChangeTimeoutRef.current = setTimeout(() => {
+      // Send code change via WebSocket
+      sendCodeChange(code, formData.language)
+      console.log('[WebSocket] Sending code change')
+      
+      // Auto-save to backend if this is an existing snippet
+      if (!isNew && resolvedSnippetId && resolvedSnippetId !== 'new') {
+        dispatch({
+          type: SNIPPET_UPDATE_REQUEST,
+          payload: {
+            id: resolvedSnippetId,
+            code,
+            title: formData.title,
+            description: formData.description,
+            language: formData.language,
+            tags: formData.tags,
+            isPublic: formData.isPublic,
+          },
+        } as any)
+        console.log('[Auto-save] Saving to backend:', { snippetId: resolvedSnippetId })
+      }
+    }, 1000) // 1 second debounce for auto-save
+  }
+
+  // Cleanup on unmount
   useEffect(() => {
-    // Use tinyCode for new snippets, resolvedSnippetId for existing snippets
-    const presenceTrackingId = tinyCode || resolvedSnippetId
-    
-    // Use displayUsername if available, otherwise use a default
-    const currentUsername = displayUsername || `User ${userId.substring(0, 4)}`
-    
-    if (presenceTrackingId && presenceTrackingId !== 'new' && displayUsername) {
-      const presenceKey = `presence_${presenceTrackingId}`
-      const currentPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
-      
-      // Track how many users were present before we added ourselves
-      const userCountBefore = currentPresence.length
-      
-      // Track which users we've already shown notifications for (to avoid duplicates)
-      const notifiedUserIds = new Set<string>()
-      
-      // Add current user if not already present
-      if (!currentPresence.find((u: any) => u.id === userId)) {
-        currentPresence.push({
-          id: userId,
-          username: currentUsername,
-          timestamp: new Date().toISOString()
-        })
-        localStorage.setItem(presenceKey, JSON.stringify(currentPresence))
-        
-        // Only show notification if there were OTHER users before we joined
-        if (userCountBefore > 0) {
-          console.log('Other users detected, showing their presence', { userCountBefore, otherUsers: currentPresence })
-          // Show notifications for users who were already there
-          currentPresence
-            .filter((u: any) => u.id !== userId)
-            .forEach((u: any) => {
-              if (!notifiedUserIds.has(u.id)) {
-                notifiedUserIds.add(u.id)
-                const newUser = { id: u.id, username: u.username, timestamp: new Date(u.timestamp) }
-                setUserNotifications(prev => [...prev, newUser])
-              }
-            })
-        }
+    return () => {
+      if (codeChangeTimeoutRef.current) {
+        clearTimeout(codeChangeTimeoutRef.current)
       }
-
-      // Listen for storage changes (other windows/tabs)
-      const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === presenceKey && e.newValue) {
-          const newPresence = JSON.parse(e.newValue)
-          console.log('Storage change detected', { presenceKey, newPresence })
-          
-          // Update active users (including ourselves)
-          setActiveUsers(newPresence.map((u: any) => ({
-            ...u,
-            timestamp: new Date(u.timestamp)
-          })))
-          
-          // Show notification for NEW users only (not ourselves)
-          newPresence.forEach((user: any) => {
-            if (user.id !== userId && !notifiedUserIds.has(user.id)) {
-              notifiedUserIds.add(user.id)
-              console.log('New user detected', { userId: user.id, username: user.username })
-              const newUser = { id: user.id, username: user.username, timestamp: new Date(user.timestamp) }
-              setUserNotifications(prev => [...prev, newUser])
-            }
-          })
-        }
-      }
-
-      window.addEventListener('storage', handleStorageChange)
-      
-      // Also set initial active users (including ourselves and others)
-      setActiveUsers(currentPresence.map((u: any) => ({
-        ...u,
-        timestamp: new Date(u.timestamp)
-      })))
-
-      return () => {
-        window.removeEventListener('storage', handleStorageChange)
-        // Clean up presence on unmount
-        const finalPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
-        const updatedPresence = finalPresence.filter((u: any) => u.id !== userId)
-        if (updatedPresence.length > 0) {
-          localStorage.setItem(presenceKey, JSON.stringify(updatedPresence))
-        } else {
-          localStorage.removeItem(presenceKey)
-        }
-        // Clear active users on unmount
-        setActiveUsers([])
-        setUserNotifications([])
+      if (typingIndicatorTimeoutRef.current) {
+        clearTimeout(typingIndicatorTimeoutRef.current)
       }
     }
-  }, [tinyCode, resolvedSnippetId, userId, displayUsername])
+  }, [])
+
+  // Track user presence in the snippet
+  useEffect(() => {
+    // WebSocket handles presence tracking
+    // This effect is kept for cleanup purposes
+    const presenceTrackingId = tinyCode || resolvedSnippetId
+    
+    return () => {
+      // Clear active users on unmount  
+      setActiveUsers([])
+      setUserNotifications([])
+    }
+  }, [tinyCode, resolvedSnippetId])
 
   const languages = [
     'javascript',
@@ -771,6 +804,23 @@ const EditorPage: React.FC = () => {
           <div className="mt-1 text-xs text-blue-200">
             {activeUsers.slice(0, 3).map(u => u.username).join(', ')}
             {activeUsers.length > 3 && ` +${activeUsers.length - 3}`}
+          </div>
+        </div>
+      )}
+
+      {/* Typing Indicator - Show who is typing */}
+      {typingUsers.length > 0 && (
+        <div className="fixed top-40 right-6 bg-purple-900 border border-purple-700 rounded-lg px-4 py-2 text-purple-100 text-xs pointer-events-auto z-40">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+            <span className="text-purple-200">
+              {typingUsers.map(u => u.username).join(', ')} 
+              {typingUsers.length === 1 ? ' is' : ' are'} typing...
+            </span>
           </div>
         </div>
       )}
