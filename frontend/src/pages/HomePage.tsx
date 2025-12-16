@@ -52,8 +52,11 @@ const HomePage: React.FC = () => {
   })
 
   const handleCreateNewSnippet = () => {
-    logger.info('Creating new snippet')
-    navigate('/editor/new')
+    // Generate a tiny code for the new snippet
+    const share = createSnippetShare('new-snippet')
+    logger.info('Creating new snippet with share URL', { tinyCode: share.tinyCode })
+    // Navigate to the tiny URL so it can be shared immediately
+    navigate(`/join/${share.tinyCode}`)
   }
 
   return (

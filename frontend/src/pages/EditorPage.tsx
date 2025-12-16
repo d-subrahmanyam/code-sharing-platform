@@ -6,7 +6,7 @@ import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiC
 import Editor from 'react-simple-code-editor'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
-import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare } from '../utils/tinyUrl'
+import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
 import './EditorPage.css'
 
@@ -29,6 +29,8 @@ const EditorPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [shareableUrl, setShareableUrl] = useState<string | null>(null)
+  const [showShareModal, setShowShareModal] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -49,50 +51,64 @@ const EditorPage: React.FC = () => {
 
   // Resolve tiny code to snippet ID on mount or when tinyCode changes
   useEffect(() => {
-    if (tinyCode && isValidTinyCode(tinyCode)) {
-      setIsResolving(true)
-      setResolutionError(null)
-
-      const resolveTinyCode = async () => {
-        try {
-          logger.debug('Resolving tiny code', { tinyCode })
-
-          // Check session storage first for cached mapping
-          const cached = getTinyCodeMapping(tinyCode)
-          if (cached) {
-            logger.info('Tiny code resolved from cache', { tinyCode, snippetId: cached })
-            setResolvedSnippetId(cached)
-            setIsResolving(false)
-            return
-          }
-
-          // Query backend for the mapping
-          const snippetId = await lookupSnippetByTinyCode(tinyCode)
-
-          if (!snippetId) {
-            const error = `Snippet not found for code: ${tinyCode}`
-            logger.warn('Tiny code resolution failed', { tinyCode, error })
-            setResolutionError(error)
-            setIsResolving(false)
-            return
-          }
-
-          // Store in session storage for future lookups
-          storeTinyCodeMapping(tinyCode, snippetId)
-
-          logger.success('Tiny code resolved successfully', { tinyCode, snippetId })
-          setResolvedSnippetId(snippetId)
-          setResolutionError(null)
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-          logger.error('Error resolving tiny code', error, { tinyCode })
-          setResolutionError(errorMsg)
-        } finally {
-          setIsResolving(false)
-        }
+    if (tinyCode) {
+      // Handle new snippet creation with tiny code
+      if (tinyCode.includes('new-snippet')) {
+        logger.info('Creating new snippet with share code', { tinyCode })
+        setResolvedSnippetId('new')
+        const baseUrl = window.location.origin
+        const shareUrl = `${baseUrl}/join/${tinyCode}`
+        setShareableUrl(shareUrl)
+        setIsResolving(false)
+        return
       }
 
-      resolveTinyCode()
+      // Handle normal tiny code resolution
+      if (isValidTinyCode(tinyCode)) {
+        setIsResolving(true)
+        setResolutionError(null)
+
+        const resolveTinyCode = async () => {
+          try {
+            logger.debug('Resolving tiny code', { tinyCode })
+
+            // Check session storage first for cached mapping
+            const cached = getTinyCodeMapping(tinyCode)
+            if (cached) {
+              logger.info('Tiny code resolved from cache', { tinyCode, snippetId: cached })
+              setResolvedSnippetId(cached)
+              setIsResolving(false)
+              return
+            }
+
+            // Query backend for the mapping
+            const snippetId = await lookupSnippetByTinyCode(tinyCode)
+
+            if (!snippetId) {
+              const error = `Snippet not found for code: ${tinyCode}`
+              logger.warn('Tiny code resolution failed', { tinyCode, error })
+              setResolutionError(error)
+              setIsResolving(false)
+              return
+            }
+
+            // Store in session storage for future lookups
+            storeTinyCodeMapping(tinyCode, snippetId)
+
+            logger.success('Tiny code resolved successfully', { tinyCode, snippetId })
+            setResolvedSnippetId(snippetId)
+            setResolutionError(null)
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+            logger.error('Error resolving tiny code', error, { tinyCode })
+            setResolutionError(errorMsg)
+          } finally {
+            setIsResolving(false)
+          }
+        }
+
+        resolveTinyCode()
+      }
     }
   }, [tinyCode])
 
@@ -264,15 +280,60 @@ const EditorPage: React.FC = () => {
             {isNew ? 'New Snippet' : formData.title || 'Untitled Snippet'}
           </h1>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-        >
-          <FiSave size={18} />
-          {isSaving ? 'Saving...' : 'Save'}
-        </button>
+        <div className="flex items-center gap-3">
+          {shareableUrl && (
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+            >
+              <FiCode size={18} />
+              Share
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
+            <FiSave size={18} />
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </header>
+
+      {/* Share Modal */}
+      {showShareModal && shareableUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4 border border-gray-700">
+            <h2 className="text-2xl font-bold text-white mb-4">Share Snippet</h2>
+            <p className="text-gray-300 mb-4">
+              Share this link with others to let them view your code:
+            </p>
+            <div className="bg-gray-900 rounded p-4 mb-4 border border-gray-600">
+              <p className="text-blue-400 font-mono text-sm break-all">{shareableUrl}</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  await copyToClipboard(shareableUrl)
+                  logger.success('Share URL copied to clipboard')
+                  alert('Share URL copied to clipboard!')
+                  setShowShareModal(false)
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Copy Link
+              </button>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-hidden flex">
         {/* Sidebar - Metadata */}
