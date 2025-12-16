@@ -99,15 +99,37 @@ The quickest way to get started:
 ```bash
 git clone <repository-url>
 cd code-sharing-platform
+
+# Development setup
 docker-compose up -d
+
+# Production setup
+cp .env.example .env
+# Edit .env with your configuration
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-The application will be available at:
+**Access the application at:**
 - Frontend: http://localhost
 - Backend API: http://localhost:8080/api
 - GraphQL: http://localhost:8080/api/graphiql
 
-See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker instructions.
+**Helper Scripts:**
+```bash
+# Linux/Mac
+./docker-helper.sh up              # Start services
+./docker-helper.sh logs            # View logs
+./docker-helper.sh ps              # Container status
+./docker-helper.sh mongo           # Access MongoDB
+./docker-helper.sh psql            # Access PostgreSQL
+
+# Windows
+docker-helper.bat up               # Start services
+docker-helper.bat logs             # View logs
+docker-helper.bat ps               # Container status
+```
+
+See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker instructions and advanced usage.
 
 ### Option 2: Local Development
 

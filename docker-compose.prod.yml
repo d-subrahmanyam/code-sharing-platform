@@ -1,0 +1,70 @@
+version: '3.8'
+
+# Production Docker Compose Configuration
+# This file extends the base docker-compose.yml with production-specific settings
+
+services:
+  postgres:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  mongodb:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-change-me}
+
+  backend:
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-code_sharing_platform}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-change-me}
+      SPRING_DATA_MONGODB_URI: mongodb://${MONGO_USER:-root}:${MONGO_PASSWORD:-change-me}@mongodb:27017/${DB_NAME:-code_sharing_platform}?authSource=admin
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      LOGGING_LEVEL_ROOT: WARN
+      LOGGING_LEVEL_COM_CODESHARING_PLATFORM: INFO
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
