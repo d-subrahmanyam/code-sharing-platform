@@ -4,18 +4,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
 import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight, FiEyeOff } from 'react-icons/fi'
 import Editor from 'react-simple-code-editor'
-import 'prismjs'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/components/prism-python'
-import 'prismjs/components/prism-java'
-import 'prismjs/components/prism-cpp'
-import 'prismjs/components/prism-typescript'
-import 'prismjs/components/prism-markup'
-import 'prismjs/components/prism-css'
-import 'prismjs/components/prism-sql'
-import 'prismjs/components/prism-bash'
-import 'prismjs/components/prism-go'
-import 'prismjs/themes/prism-tomorrow.css'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
 import './EditorPage.css'
 
 /**
@@ -369,7 +359,7 @@ const EditorPage: React.FC = () => {
                       'java': 'java',
                       'cpp': 'cpp',
                       'typescript': 'typescript',
-                      'html': 'markup',
+                      'html': 'xml',
                       'css': 'css',
                       'sql': 'sql',
                       'bash': 'bash',
@@ -377,8 +367,7 @@ const EditorPage: React.FC = () => {
                     }
                     const lang = languageMap[formData.language] || 'javascript'
                     try {
-                      const Prism = (window as any).Prism
-                      return Prism.highlight(code, Prism.languages[lang] || Prism.languages.javascript, lang)
+                      return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
                     } catch (error) {
                       return code
                     }
