@@ -6,6 +6,7 @@ import axios, { AxiosInstance, AxiosError } from 'axios'
 import store from '../store'
 
 const API_BASE_URL = (import.meta.env as any).VITE_API_BASE_URL || 'http://localhost:8080/api'
+const GRAPHQL_ENDPOINT = `${API_BASE_URL}/graphql`
 
 /**
  * Create and configure the Axios instance
@@ -50,4 +51,20 @@ apiClient.interceptors.response.use(
   }
 )
 
+/**
+ * GraphQL query function
+ */
+export const graphqlQuery = async (query: string, variables?: Record<string, any>) => {
+  try {
+    const response = await apiClient.post(GRAPHQL_ENDPOINT, {
+      query,
+      variables,
+    })
+    return response.data
+  } catch (error) {
+    throw error
+  }
+}
+
 export default apiClient
+

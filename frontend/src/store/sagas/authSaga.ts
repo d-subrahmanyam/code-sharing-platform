@@ -11,8 +11,38 @@ import {
   AUTH_REGISTER_SUCCESS,
   AUTH_REGISTER_FAILURE,
 } from '../actionTypes'
-import apiClient from '@api/client'
+import { graphqlQuery } from '@api/client'
 import type { LoginCredentials, RegisterCredentials } from '../../types/redux'
+
+const LOGIN_MUTATION = `
+  mutation Login($email: String!, $password: String!) {
+    login(email: $email, password: $password) {
+      token
+      user {
+        id
+        username
+        email
+      }
+      success
+      message
+    }
+  }
+`
+
+const REGISTER_MUTATION = `
+  mutation Register($username: String!, $email: String!, $password: String!) {
+    register(username: $username, email: $email, password: $password) {
+      token
+      user {
+        id
+        username
+        email
+      }
+      success
+      message
+    }
+  }
+`
 
 /**
  * Login saga worker function
@@ -20,18 +50,31 @@ import type { LoginCredentials, RegisterCredentials } from '../../types/redux'
 function* loginSaga(action: any) {
   try {
     const response = yield call(
-      apiClient.post,
-      '/auth/login',
+      graphqlQuery,
+      LOGIN_MUTATION,
       action.payload as LoginCredentials
     )
-    yield put({
-      type: AUTH_LOGIN_SUCCESS,
-      payload: response.data,
-    })
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message)
+    }
+
+    const { data } = response
+    if (data.login.success) {
+      yield put({
+        type: AUTH_LOGIN_SUCCESS,
+        payload: data.login,
+      })
+    } else {
+      yield put({
+        type: AUTH_LOGIN_FAILURE,
+        payload: data.login.message || 'Login failed',
+      })
+    }
   } catch (error: any) {
     yield put({
       type: AUTH_LOGIN_FAILURE,
-      payload: error.response?.data?.message || 'Login failed',
+      payload: error.message || 'Login failed',
     })
   }
 }
@@ -42,26 +85,40 @@ function* loginSaga(action: any) {
 function* registerSaga(action: any) {
   try {
     const response = yield call(
-      apiClient.post,
-      '/auth/register',
+      graphqlQuery,
+      REGISTER_MUTATION,
       action.payload as RegisterCredentials
     )
-    yield put({
-      type: AUTH_REGISTER_SUCCESS,
-      payload: response.data,
-    })
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message)
+    }
+
+    const { data } = response
+    if (data.register.success) {
+      yield put({
+        type: AUTH_REGISTER_SUCCESS,
+        payload: data.register,
+      })
+    } else {
+      yield put({
+        type: AUTH_REGISTER_FAILURE,
+        payload: data.register.message || 'Registration failed',
+      })
+    }
   } catch (error: any) {
     yield put({
       type: AUTH_REGISTER_FAILURE,
-      payload: error.response?.data?.message || 'Registration failed',
+      payload: error.message || 'Registration failed',
     })
   }
 }
 
 /**
- * Auth saga watcher
+ * Root auth saga
  */
 export default function* authSaga() {
   yield takeEvery(AUTH_LOGIN_REQUEST, loginSaga)
   yield takeEvery(AUTH_REGISTER_REQUEST, registerSaga)
 }
+

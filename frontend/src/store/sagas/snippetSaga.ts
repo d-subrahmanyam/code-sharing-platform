@@ -17,22 +17,127 @@ import {
   SNIPPET_DELETE_SUCCESS,
   SNIPPET_DELETE_FAILURE,
 } from '../actionTypes'
-import apiClient from '@api/client'
+import { graphqlQuery } from '@api/client'
+
+const FETCH_SNIPPETS_QUERY = `
+  query FetchSnippets($limit: Int, $offset: Int) {
+    snippets(limit: $limit, offset: $offset) {
+      id
+      title
+      description
+      code
+      language
+      authorId
+      authorUsername
+      tags
+      views
+      isPublic
+      shareUrl
+      createdAt
+      updatedAt
+    }
+  }
+`
+
+const CREATE_SNIPPET_MUTATION = `
+  mutation CreateSnippet(
+    $title: String!
+    $description: String!
+    $code: String!
+    $language: String!
+    $tags: [String!]
+    $isPublic: Boolean
+  ) {
+    createSnippet(
+      title: $title
+      description: $description
+      code: $code
+      language: $language
+      tags: $tags
+      isPublic: $isPublic
+    ) {
+      id
+      title
+      description
+      code
+      language
+      authorId
+      authorUsername
+      tags
+      views
+      isPublic
+      shareUrl
+      createdAt
+      updatedAt
+    }
+  }
+`
+
+const UPDATE_SNIPPET_MUTATION = `
+  mutation UpdateSnippet(
+    $id: String!
+    $title: String!
+    $description: String!
+    $code: String!
+    $language: String!
+    $tags: [String!]
+    $isPublic: Boolean
+  ) {
+    updateSnippet(
+      id: $id
+      title: $title
+      description: $description
+      code: $code
+      language: $language
+      tags: $tags
+      isPublic: $isPublic
+    ) {
+      id
+      title
+      description
+      code
+      language
+      authorId
+      authorUsername
+      tags
+      views
+      isPublic
+      shareUrl
+      createdAt
+      updatedAt
+    }
+  }
+`
+
+const DELETE_SNIPPET_MUTATION = `
+  mutation DeleteSnippet($id: String!) {
+    deleteSnippet(id: $id)
+  }
+`
 
 /**
  * Fetch snippets saga worker function
  */
 function* fetchSnippetsSaga(action: any) {
   try {
-    const response = yield call(apiClient.get, '/snippets')
+    const response = yield call(
+      graphqlQuery,
+      FETCH_SNIPPETS_QUERY,
+      { limit: 20, offset: 0 }
+    )
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message)
+    }
+
     yield put({
       type: SNIPPET_FETCH_SUCCESS,
-      payload: response.data,
+      payload: response.data.snippets,
     })
   } catch (error: any) {
     yield put({
       type: SNIPPET_FETCH_FAILURE,
-      payload: error.response?.data?.message || 'Failed to fetch snippets',
+      payload: error.message || 'Failed to fetch snippets',
     })
   }
 }
@@ -42,15 +147,24 @@ function* fetchSnippetsSaga(action: any) {
  */
 function* createSnippetSaga(action: any) {
   try {
-    const response = yield call(apiClient.post, '/snippets', action.payload)
+    const response = yield call(
+      graphqlQuery,
+      CREATE_SNIPPET_MUTATION,
+      action.payload
+    )
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message)
+    }
+
     yield put({
       type: SNIPPET_CREATE_SUCCESS,
-      payload: response.data,
+      payload: response.data.createSnippet,
     })
   } catch (error: any) {
     yield put({
       type: SNIPPET_CREATE_FAILURE,
-      payload: error.response?.data?.message || 'Failed to create snippet',
+      payload: error.message || 'Failed to create snippet',
     })
   }
 }
@@ -60,16 +174,24 @@ function* createSnippetSaga(action: any) {
  */
 function* updateSnippetSaga(action: any) {
   try {
-    const { id, ...data } = action.payload
-    const response = yield call(apiClient.put, `/snippets/${id}`, data)
+    const response = yield call(
+      graphqlQuery,
+      UPDATE_SNIPPET_MUTATION,
+      action.payload
+    )
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message)
+    }
+
     yield put({
       type: SNIPPET_UPDATE_SUCCESS,
-      payload: response.data,
+      payload: response.data.updateSnippet,
     })
   } catch (error: any) {
     yield put({
       type: SNIPPET_UPDATE_FAILURE,
-      payload: error.response?.data?.message || 'Failed to update snippet',
+      payload: error.message || 'Failed to update snippet',
     })
   }
 }
@@ -79,15 +201,28 @@ function* updateSnippetSaga(action: any) {
  */
 function* deleteSnippetSaga(action: any) {
   try {
-    yield call(apiClient.delete, `/snippets/${action.payload}`)
-    yield put({
-      type: SNIPPET_DELETE_SUCCESS,
-      payload: action.payload,
-    })
+    const response = yield call(
+      graphqlQuery,
+      DELETE_SNIPPET_MUTATION,
+      { id: action.payload }
+    )
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message)
+    }
+
+    if (response.data.deleteSnippet) {
+      yield put({
+        type: SNIPPET_DELETE_SUCCESS,
+        payload: action.payload,
+      })
+    } else {
+      throw new Error('Failed to delete snippet')
+    }
   } catch (error: any) {
     yield put({
       type: SNIPPET_DELETE_FAILURE,
-      payload: error.response?.data?.message || 'Failed to delete snippet',
+      payload: error.message || 'Failed to delete snippet',
     })
   }
 }
