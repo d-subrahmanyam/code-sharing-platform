@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { AUTH_LOGIN_REQUEST } from '../store/actionTypes'
+import { AUTH_LOGIN_REQUEST, AUTH_REGISTER_REQUEST } from '../store/actionTypes'
+import { FiMail, FiLock, FiUser, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
 
 /**
  * Login Page Component
@@ -39,10 +40,7 @@ const LoginPage: React.FC = () => {
         // Login
         dispatch({
           type: AUTH_LOGIN_REQUEST,
-          payload: {
-            email: formData.email,
-            password: formData.password,
-          },
+          payload: { email: formData.email, password: formData.password },
         } as any)
       } else {
         // Register - similar to login but with username
@@ -92,7 +90,7 @@ const LoginPage: React.FC = () => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              Login
+              🔐 Login
             </button>
             <button
               onClick={() => {
@@ -106,13 +104,14 @@ const LoginPage: React.FC = () => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              Register
+              ✨ Register
             </button>
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm flex items-center gap-2">
+              <FiAlertCircle size={18} />
               {error}
             </div>
           )}
@@ -122,51 +121,63 @@ const LoginPage: React.FC = () => {
             {/* Username Field (Register Only) */}
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <FiUser size={16} className="text-blue-500" />
                   Username
                 </label>
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  placeholder="Choose a username"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleChange}
+                    placeholder="Choose a username"
+                    required
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                  <FiUser className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                </div>
               </div>
             )}
 
             {/* Email Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <FiMail size={16} className="text-blue-500" />
                 Email
               </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="your@email.com"
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              />
+              <div className="relative">
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="your@email.com"
+                  required
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+                <FiMail className="absolute left-3 top-2.5 text-gray-400" size={18} />
+              </div>
             </div>
 
             {/* Password Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <FiLock size={16} className="text-blue-500" />
                 Password
               </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              />
+              <div className="relative">
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  required
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+                <FiLock className="absolute left-3 top-2.5 text-gray-400" size={18} />
+              </div>
             </div>
 
             {/* Submit Button */}
@@ -190,9 +201,12 @@ const LoginPage: React.FC = () => {
 
           {/* Demo Notice */}
           <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-600">
-            <p className="font-semibold text-blue-900 mb-1">Demo Credentials:</p>
-            <p className="text-xs">Email: demo@example.com</p>
-            <p className="text-xs">Password: demo123</p>
+            <p className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+              <FiCheckCircle size={16} className="text-blue-500" />
+              Demo Credentials:
+            </p>
+            <p className="text-xs ml-6">📧 demo@example.com</p>
+            <p className="text-xs ml-6">🔑 demo123</p>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
+import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX } from 'react-icons/fi'
 
 /**
  * Editor Page Component
@@ -150,15 +151,17 @@ const EditorPage: React.FC = () => {
           >
             ← Back
           </button>
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <FiCode size={24} className="text-blue-400" />
             {isNew ? 'New Snippet' : formData.title || 'Untitled Snippet'}
           </h1>
         </div>
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
         >
+          <FiSave size={18} />
           {isSaving ? 'Saving...' : 'Save'}
         </button>
       </header>
@@ -199,7 +202,8 @@ const EditorPage: React.FC = () => {
 
             {/* Language */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                <FiCode size={16} className="text-blue-400" />
                 Language
               </label>
               <select
@@ -218,7 +222,8 @@ const EditorPage: React.FC = () => {
 
             {/* Tags */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                <FiTag size={16} className="text-blue-400" />
                 Tags
               </label>
               <div className="flex gap-2 mb-2">
@@ -243,12 +248,13 @@ const EditorPage: React.FC = () => {
                     key={tag}
                     className="inline-flex items-center gap-2 bg-blue-600 text-white text-xs px-2 py-1 rounded"
                   >
+                    <FiTag size={12} />
                     {tag}
                     <button
                       onClick={() => handleRemoveTag(tag)}
                       className="hover:text-gray-200"
                     >
-                      ✕
+                      <FiX size={14} />
                     </button>
                   </span>
                 ))}
@@ -256,8 +262,8 @@ const EditorPage: React.FC = () => {
             </div>
 
             {/* Visibility */}
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="pt-4 border-t border-gray-700">
+              <label className="flex items-center gap-3 cursor-pointer hover:text-blue-400 transition-colors">
                 <input
                   type="checkbox"
                   name="isPublic"
@@ -265,7 +271,19 @@ const EditorPage: React.FC = () => {
                   onChange={handleFormChange}
                   className="rounded"
                 />
-                <span className="text-sm font-medium">Make public</span>
+                <span className="text-sm font-medium flex items-center gap-2">
+                  {formData.isPublic ? (
+                    <>
+                      <FiEye size={16} className="text-blue-400" />
+                      Public
+                    </>
+                  ) : (
+                    <>
+                      <FiLock size={16} className="text-yellow-400" />
+                      Private
+                    </>
+                  )}
+                </span>
               </label>
             </div>
           </div>

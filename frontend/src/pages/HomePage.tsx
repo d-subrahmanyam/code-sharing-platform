@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { SNIPPET_FETCH_REQUEST } from '../store/actionTypes'
+import { FiSearch, FiFilter, FiCode, FiPlus } from 'react-icons/fi'
 
 /**
  * Home Page Component
@@ -54,7 +55,10 @@ const HomePage: React.FC = () => {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900">Code Sharing</h1>
+            <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-2">
+              <FiCode className="text-blue-600" size={36} />
+              Code Sharing
+            </h1>
             <p className="text-lg text-gray-600 mt-2">
               Share and collaborate on code snippets in real-time
             </p>
@@ -68,9 +72,10 @@ const HomePage: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/editor/new')}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
-              + New Snippet
+              <FiPlus size={18} />
+              New Snippet
             </button>
           </div>
         </div>
@@ -83,35 +88,43 @@ const HomePage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Search */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <FiSearch size={16} className="text-blue-500" />
                   Search Snippets
                 </label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by title or description..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by title or description..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                  <FiSearch className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                </div>
               </div>
 
               {/* Language Filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <FiFilter size={16} className="text-blue-500" />
                   Language
                 </label>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                >
-                  <option value="">All Languages</option>
-                  {languages.map((lang) => (
-                    <option key={lang} value={lang}>
-                      {lang}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={selectedLanguage}
+                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none"
+                  >
+                    <option value="">All Languages</option>
+                    {languages.map((lang) => (
+                      <option key={lang} value={lang}>
+                        {lang}
+                      </option>
+                    ))}
+                  </select>
+                  <FiFilter className="absolute left-3 top-2.5 text-gray-400 pointer-events-none" size={18} />
+                </div>
               </div>
             </div>
 
