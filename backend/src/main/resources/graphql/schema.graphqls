@@ -1,0 +1,81 @@
+type Query {
+    hello: String!
+    snippet(id: String!): Snippet
+    snippets(limit: Int, offset: Int): [Snippet!]!
+    searchSnippets(query: String!, limit: Int): [Snippet!]!
+    snippetsByLanguage(language: String!, limit: Int): [Snippet!]!
+    comments(snippetId: String!): [Comment!]!
+    me: User
+}
+
+type Mutation {
+    login(email: String!, password: String!): AuthPayload!
+    register(username: String!, email: String!, password: String!): AuthPayload!
+    
+    createSnippet(
+        title: String!
+        description: String!
+        code: String!
+        language: String!
+        tags: [String!]
+        isPublic: Boolean
+    ): Snippet!
+    
+    updateSnippet(
+        id: String!
+        title: String!
+        description: String!
+        code: String!
+        language: String!
+        tags: [String!]
+        isPublic: Boolean
+    ): Snippet!
+    
+    deleteSnippet(id: String!): Boolean!
+    
+    addComment(snippetId: String!, content: String!): Comment!
+    deleteComment(id: String!): Boolean!
+    
+    incrementSnippetViews(snippetId: String!): Int!
+}
+
+type AuthPayload {
+    token: String
+    user: User
+    success: Boolean!
+    message: String!
+}
+
+type User {
+    id: String!
+    username: String!
+    email: String!
+}
+
+type Snippet {
+    id: String!
+    title: String!
+    description: String!
+    code: String!
+    language: String!
+    author: User!
+    authorId: String!
+    authorUsername: String!
+    tags: [String!]!
+    views: Int!
+    isPublic: Boolean!
+    shareUrl: String
+    createdAt: String!
+    updatedAt: String!
+}
+
+type Comment {
+    id: String!
+    snippetId: String!
+    author: User!
+    authorId: String!
+    authorUsername: String!
+    content: String!
+    createdAt: String!
+    updatedAt: String!
+}

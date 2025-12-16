@@ -6,6 +6,8 @@ import HomePage from './pages/HomePage'
 import EditorPage from './pages/EditorPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
+import Navbar from './components/Navbar'
+import Footer from './components/Footer'
 
 /**
  * Root App Component
@@ -19,12 +21,18 @@ function App() {
   return (
     <Provider store={store}>
       <Router>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/editor/:snippetId" element={<EditorPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <div className="flex flex-col min-h-screen">
+          <Navbar />
+          <main className="flex-1">
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/editor/:snippetId" element={<EditorPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
       </Router>
     </Provider>
   )
