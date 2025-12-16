@@ -31,5 +31,27 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     minify: 'terser',
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks for better caching
+          'vendor': [
+            'react',
+            'react-dom',
+            'react-router-dom',
+          ],
+          'redux': [
+            'redux',
+            'react-redux',
+            'redux-saga',
+          ],
+          'ui': [
+            'react-icons',
+            'highlight.js',
+          ],
+        },
+      },
+    },
   }
 })
