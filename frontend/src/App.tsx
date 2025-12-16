@@ -27,6 +27,7 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/editor/:snippetId" element={<EditorPage />} />
+              <Route path="/join/:tinyCode" element={<EditorPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
