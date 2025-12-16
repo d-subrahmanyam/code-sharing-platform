@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
-import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX } from 'react-icons/fi'
+import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 
 /**
  * Editor Page Component
@@ -16,6 +16,7 @@ const EditorPage: React.FC = () => {
   const [isNew] = useState(snippetId === 'new')
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'code' | 'preview' | 'comments'>('code')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -168,10 +169,31 @@ const EditorPage: React.FC = () => {
 
       <div className="flex-1 overflow-hidden flex">
         {/* Sidebar - Metadata */}
-        <div className="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto p-6 text-white">
-          <div className="space-y-6">
-            {/* Title */}
-            <div>
+        <div className={`bg-gray-800 border-r border-gray-700 overflow-y-auto text-white transition-all duration-300 ${
+          sidebarCollapsed ? 'w-16' : 'w-80'
+        }`}>
+          {/* Collapse Toggle Button */}
+          <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+            {!sidebarCollapsed && <h2 className="text-sm font-semibold text-gray-300">Metadata</h2>}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-2 hover:bg-gray-700 rounded-lg transition-colors ml-auto"
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? (
+                <FiChevronRight size={20} className="text-gray-400" />
+              ) : (
+                <FiChevronLeft size={20} className="text-gray-400" />
+              )}
+            </button>
+          </div>
+
+          {/* Sidebar Content */}
+          {!sidebarCollapsed && (
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Title */}
+                <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Title
               </label>
@@ -286,7 +308,9 @@ const EditorPage: React.FC = () => {
                 </span>
               </label>
             </div>
-          </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Main Editor Area */}
