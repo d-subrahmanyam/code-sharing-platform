@@ -3,6 +3,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { SNIPPET_FETCH_REQUEST } from '../store/actionTypes'
 import { FiSearch, FiFilter, FiCode, FiPlus } from 'react-icons/fi'
+import { createSnippetShare } from '../utils/tinyUrl'
+import { logger } from '../utils/logger'
 
 /**
  * Home Page Component
@@ -49,6 +51,11 @@ const HomePage: React.FC = () => {
     return matchesQuery && matchesLanguage
   })
 
+  const handleCreateNewSnippet = () => {
+    logger.info('Creating new snippet')
+    navigate('/editor/new')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -71,7 +78,7 @@ const HomePage: React.FC = () => {
               Login
             </button>
             <button
-              onClick={() => navigate('/editor/new')}
+              onClick={handleCreateNewSnippet}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
               <FiPlus size={18} />
@@ -215,7 +222,7 @@ const HomePage: React.FC = () => {
             <div className="text-center py-12 bg-white rounded-lg">
               <p className="text-gray-500 text-lg mb-4">No snippets found</p>
               <button
-                onClick={() => navigate('/editor/new')}
+                onClick={handleCreateNewSnippet}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
               >
                 Create the first one →

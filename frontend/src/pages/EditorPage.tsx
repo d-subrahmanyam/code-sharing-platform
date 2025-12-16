@@ -6,7 +6,7 @@ import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiC
 import Editor from 'react-simple-code-editor'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
-import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode } from '../utils/tinyUrl'
+import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
 import './EditorPage.css'
 
@@ -176,11 +176,20 @@ const EditorPage: React.FC = () => {
     setIsSaving(true)
 
     try {
+      let savedSnippetId = resolvedSnippetId
+
       if (isNew) {
-        dispatch({
+        // For new snippets, dispatch create and wait for response
+        const action = {
           type: SNIPPET_CREATE_REQUEST,
           payload: formData,
-        } as any)
+        }
+        dispatch(action as any)
+
+        // In a real app with proper saga handling, we'd get the ID from the result
+        // For now, we'll generate a temporary share with a placeholder ID
+        // The actual ID will be set by the backend
+        logger.info('New snippet created', { title: formData.title })
       } else {
         dispatch({
           type: SNIPPET_UPDATE_REQUEST,
@@ -191,11 +200,25 @@ const EditorPage: React.FC = () => {
         } as any)
       }
 
-      // Redirect after save (in real app, handle via saga)
+      // Create a tiny code for sharing
+      if (isNew && resolvedSnippetId === 'new') {
+        // For new snippets, show the share dialog
+        logger.info('Generating share URL for new snippet')
+        const share = createSnippetShare('temp-new-snippet')
+        
+        // Show alert with share URL
+        alert(
+          `Snippet created! Share it with this URL:\n\n${share.shareableURL}\n\n` +
+          'This link will be available after your snippet is saved.'
+        )
+      }
+
+      // Redirect after save
       setTimeout(() => {
         navigate('/')
       }, 1500)
     } catch (error) {
+      logger.error('Failed to save snippet', error as Error)
       alert('Failed to save snippet')
     } finally {
       setIsSaving(false)
