@@ -1,0 +1,172 @@
+package com.codesharing.platform.websocket;
+
+import com.codesharing.platform.service.CollaborationService;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+
+/**
+ * WebSocket Message Controller
+ * Handles STOMP messages for collaborative editing
+ * Routes presence updates, typing indicators, and code changes
+ */
+@Controller
+@RequiredArgsConstructor
+public class CollaborationController {
+
+  private final CollaborationService collaborationService;
+  private final SimpMessagingTemplate messagingTemplate;
+
+  /**
+   * Handle user joining a snippet session
+   * Message: /app/snippet/{snippetId}/join
+   */
+  @MessageMapping("/snippet/{snippetId}/join")
+  public void handleUserJoin(
+    @DestinationVariable String snippetId,
+    @Payload Map<String, String> payload
+  ) {
+    String userId = payload.get("userId");
+    String username = payload.get("username");
+
+    collaborationService.joinSession(snippetId, userId, username);
+
+    // Broadcast updated presence to all subscribers
+    List<Map<String, Object>> activeUsers = collaborationService.getActiveUsers(snippetId);
+    messagingTemplate.convertAndSend(
+      "/topic/snippet/" + snippetId + "/presence",
+      new PresenceMessage("user_joined", userId, username, activeUsers)
+    );
+  }
+
+  /**
+   * Handle user leaving a snippet session
+   * Message: /app/snippet/{snippetId}/leave
+   */
+  @MessageMapping("/snippet/{snippetId}/leave")
+  public void handleUserLeave(
+    @DestinationVariable String snippetId,
+    @Payload Map<String, String> payload
+  ) {
+    String userId = payload.get("userId");
+
+    collaborationService.leaveSession(snippetId, userId);
+
+    // Broadcast updated presence to all subscribers
+    List<Map<String, Object>> activeUsers = collaborationService.getActiveUsers(snippetId);
+    messagingTemplate.convertAndSend(
+      "/topic/snippet/" + snippetId + "/presence",
+      new PresenceMessage("user_left", userId, "", activeUsers)
+    );
+  }
+
+  /**
+   * Handle code changes
+   * Message: /app/snippet/{snippetId}/code
+   */
+  @MessageMapping("/snippet/{snippetId}/code")
+  public void handleCodeChange(
+    @DestinationVariable String snippetId,
+    @Payload CodeChangeMessage codeChange
+  ) {
+    // Broadcast code change to all subscribers (except sender if needed)
+    messagingTemplate.convertAndSend(
+      "/topic/snippet/" + snippetId + "/code",
+      codeChange
+    );
+  }
+
+  /**
+   * Handle typing indicator
+   * Message: /app/snippet/{snippetId}/typing
+   */
+  @MessageMapping("/snippet/{snippetId}/typing")
+  public void handleTypingIndicator(
+    @DestinationVariable String snippetId,
+    @Payload TypingIndicatorMessage typing
+  ) {
+    collaborationService.setUserTyping(snippetId, typing.userId, typing.isTyping);
+
+    // Broadcast typing status with usernames to all subscribers
+    List<Map<String, String>> typingUsers = collaborationService.getTypingUsersWithNames(snippetId);
+    messagingTemplate.convertAndSend(
+      "/topic/snippet/" + snippetId + "/typing",
+      new TypingStatusMessage(typingUsers)
+    );
+  }
+
+  /**
+   * Get active users in snippet (on-demand query)
+   * Message: /app/snippet/{snippetId}/users
+   */
+  @MessageMapping("/snippet/{snippetId}/users")
+  public void getActiveUsers(
+    @DestinationVariable String snippetId
+  ) {
+    List<Map<String, Object>> activeUsers = collaborationService.getActiveUsers(snippetId);
+    messagingTemplate.convertAndSend(
+      "/topic/snippet/" + snippetId + "/users",
+      new ActiveUsersMessage(activeUsers, activeUsers.size())
+    );
+  }
+
+  /**
+   * Message types for WebSocket communication
+   */
+  public static class PresenceMessage {
+    public String type;
+    public String userId;
+    public String username;
+    public List<Map<String, Object>> activeUsers;
+
+    public PresenceMessage(String type, String userId, String username, List<Map<String, Object>> activeUsers) {
+      this.type = type;
+      this.userId = userId;
+      this.username = username;
+      this.activeUsers = activeUsers;
+    }
+  }
+
+  public static class CodeChangeMessage {
+    public String userId;
+    public String username;
+    public String code;
+    public String language;
+    public long timestamp;
+
+    // Default constructor for deserialization
+    public CodeChangeMessage() {}
+  }
+
+  public static class TypingIndicatorMessage {
+    public String userId;
+    public boolean isTyping;
+
+    // Default constructor for deserialization
+    public TypingIndicatorMessage() {}
+  }
+
+  public static class TypingStatusMessage {
+    public List<Map<String, String>> typingUsers;
+
+    public TypingStatusMessage(List<Map<String, String>> typingUsers) {
+      this.typingUsers = typingUsers;
+    }
+  }
+
+  public static class ActiveUsersMessage {
+    public List<Map<String, Object>> users;
+    public int count;
+
+    public ActiveUsersMessage(List<Map<String, Object>> users, int count) {
+      this.users = users;
+      this.count = count;
+    }
+  }
+}

@@ -1,0 +1,297 @@
+import SockJS from 'sockjs-client'
+import * as Stomp from 'stompjs'
+
+export interface UserPresence {
+  userId: string
+  username: string
+  joinedAt: string
+  isTyping: boolean
+}
+
+export interface CodeChangeMessage {
+  userId: string
+  username: string
+  code: string
+  language: string
+  timestamp: number
+}
+
+export interface PresenceMessage {
+  type: 'user_joined' | 'user_left'
+  userId: string
+  username: string
+  activeUsers: UserPresence[]
+}
+
+export interface TypingStatusMessage {
+  typingUsers: Array<{ userId: string; username: string }>
+}
+
+export type WebSocketCallback<T> = (data: T) => void
+
+/**
+ * WebSocket Service for Collaborative Editing
+ * Manages STOMP connections and message routing
+ */
+export class WebSocketService {
+  private stompClient: Stomp.Client | null = null
+  private isConnected = false
+  private connectionPromise: Promise<void> | null = null
+  private subscriptions: Map<string, Stomp.Subscription> = new Map()
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 5
+  private reconnectDelay = 1000
+
+  /**
+   * Connect to WebSocket server
+   */
+  async connect(userId: string): Promise<void> {
+    if (this.isConnected) {
+      return
+    }
+
+    if (this.connectionPromise) {
+      return this.connectionPromise
+    }
+
+    this.connectionPromise = new Promise((resolve, reject) => {
+      const socket = new SockJS(
+        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/ws`
+      )
+
+      this.stompClient = Stomp.over(socket)
+
+      // Disable debug logging in production
+      this.stompClient.debug = (msg: string) => {
+        if (import.meta.env.DEV) {
+          console.log('[WebSocket]', msg)
+        }
+      }
+
+      this.stompClient.connect(
+        { userId },
+        () => {
+          console.log('WebSocket connected')
+          this.isConnected = true
+          this.reconnectAttempts = 0
+          resolve()
+        },
+        (error: any) => {
+          console.error('WebSocket connection error:', error)
+          this.handleConnectionError(resolve, reject)
+        }
+      )
+    })
+
+    return this.connectionPromise
+  }
+
+  /**
+   * Disconnect from WebSocket server
+   */
+  disconnect(): void {
+    if (this.stompClient && this.isConnected) {
+      // Unsubscribe from all subscriptions
+      this.subscriptions.forEach((subscription) => {
+        subscription.unsubscribe()
+      })
+      this.subscriptions.clear()
+
+      // Disconnect
+      this.stompClient.disconnect(() => {
+        console.log('WebSocket disconnected')
+        this.isConnected = false
+      })
+    }
+  }
+
+  /**
+   * Join a snippet session
+   */
+  joinSnippet(snippetId: string, userId: string, username: string): Promise<void> {
+    return this.ensureConnected().then(() => {
+      this.stompClient!.send(`/app/snippet/${snippetId}/join`, {}, JSON.stringify({ userId, username }))
+    })
+  }
+
+  /**
+   * Leave a snippet session
+   */
+  leaveSnippet(snippetId: string, userId: string): Promise<void> {
+    return this.ensureConnected().then(() => {
+      this.stompClient!.send(`/app/snippet/${snippetId}/leave`, {}, JSON.stringify({ userId }))
+    })
+  }
+
+  /**
+   * Send code change
+   */
+  sendCodeChange(
+    snippetId: string,
+    userId: string,
+    username: string,
+    code: string,
+    language: string
+  ): Promise<void> {
+    return this.ensureConnected().then(() => {
+      this.stompClient!.send(
+        `/app/snippet/${snippetId}/code`,
+        {},
+        JSON.stringify({
+          userId,
+          username,
+          code,
+          language,
+          timestamp: Date.now(),
+        })
+      )
+    })
+  }
+
+  /**
+   * Send typing indicator
+   */
+  sendTypingIndicator(snippetId: string, userId: string, isTyping: boolean): Promise<void> {
+    return this.ensureConnected().then(() => {
+      this.stompClient!.send(
+        `/app/snippet/${snippetId}/typing`,
+        {},
+        JSON.stringify({
+          userId,
+          isTyping,
+        })
+      )
+    })
+  }
+
+  /**
+   * Subscribe to presence updates
+   */
+  subscribeToPresence(
+    snippetId: string,
+    callback: WebSocketCallback<PresenceMessage>
+  ): void {
+    const topic = `/topic/snippet/${snippetId}/presence`
+    this.unsubscribeFromTopic(topic)
+
+    this.ensureConnected().then(() => {
+      const subscription = this.stompClient!.subscribe(topic, (message) => {
+        try {
+          const data = JSON.parse(message.body)
+          callback(data)
+        } catch (error) {
+          console.error('Error parsing presence message:', error)
+        }
+      })
+      this.subscriptions.set(topic, subscription)
+    })
+  }
+
+  /**
+   * Subscribe to code changes
+   */
+  subscribeToCodeChanges(
+    snippetId: string,
+    callback: WebSocketCallback<CodeChangeMessage>
+  ): void {
+    const topic = `/topic/snippet/${snippetId}/code`
+    this.unsubscribeFromTopic(topic)
+
+    this.ensureConnected().then(() => {
+      const subscription = this.stompClient!.subscribe(topic, (message) => {
+        try {
+          const data = JSON.parse(message.body)
+          callback(data)
+        } catch (error) {
+          console.error('Error parsing code change message:', error)
+        }
+      })
+      this.subscriptions.set(topic, subscription)
+    })
+  }
+
+  /**
+   * Subscribe to typing indicators
+   */
+  subscribeToTypingStatus(
+    snippetId: string,
+    callback: WebSocketCallback<TypingStatusMessage>
+  ): void {
+    const topic = `/topic/snippet/${snippetId}/typing`
+    this.unsubscribeFromTopic(topic)
+
+    this.ensureConnected().then(() => {
+      const subscription = this.stompClient!.subscribe(topic, (message) => {
+        try {
+          const data = JSON.parse(message.body)
+          callback(data)
+        } catch (error) {
+          console.error('Error parsing typing status message:', error)
+        }
+      })
+      this.subscriptions.set(topic, subscription)
+    })
+  }
+
+  /**
+   * Unsubscribe from a specific topic
+   */
+  private unsubscribeFromTopic(topic: string): void {
+    if (this.subscriptions.has(topic)) {
+      this.subscriptions.get(topic)!.unsubscribe()
+      this.subscriptions.delete(topic)
+    }
+  }
+
+  /**
+   * Check connection status
+   */
+  getConnectionStatus(): boolean {
+    return this.isConnected && this.stompClient !== null && this.stompClient.connected
+  }
+
+  /**
+   * Ensure WebSocket is connected
+   */
+  private ensureConnected(): Promise<void> {
+    if (this.isConnected && this.stompClient?.connected) {
+      return Promise.resolve()
+    }
+    return new Promise((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        if (this.isConnected && this.stompClient?.connected) {
+          clearInterval(checkInterval)
+          resolve()
+        }
+      }, 100)
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        reject(new Error('WebSocket connection timeout'))
+      }, 10000)
+    })
+  }
+
+  /**
+   * Handle connection errors and attempt reconnection
+   */
+  private handleConnectionError(resolve: () => void, reject: (error: Error) => void): void {
+    this.reconnectAttempts++
+
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
+      console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+
+      setTimeout(() => {
+        this.connectionPromise = null
+        this.connect('').then(resolve).catch(reject)
+      }, delay)
+    } else {
+      reject(new Error('WebSocket connection failed after max retries'))
+    }
+  }
+}
+
+// Export singleton instance
+export const webSocketService = new WebSocketService()
