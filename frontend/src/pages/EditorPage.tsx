@@ -59,12 +59,14 @@ const EditorPage: React.FC = () => {
   }
   const userId = userIdRef.current
   
-  // Username - either entered by user or generated
-  const [displayUsername, setDisplayUsername] = useState<string | null>(null)
+  // Username - either from localStorage (set on HomePage) or entered by user
+  const [displayUsername, setDisplayUsername] = useState<string | null>(() => {
+    return localStorage.getItem('currentUsername')
+  })
   
-  // Show username dialog on mount if no username set
+  // Show username dialog only if not already set
   useEffect(() => {
-    if (!displayUsername && (tinyCode || resolvedSnippetId === 'new')) {
+    if (!displayUsername) {
       setShowUsernameDialog(true)
     }
   }, [])
@@ -298,6 +300,7 @@ const EditorPage: React.FC = () => {
   const handleUsernameSubmit = () => {
     const name = usernameInput.trim()
     if (name) {
+      localStorage.setItem('currentUsername', name)
       setDisplayUsername(name)
       setShowUsernameDialog(false)
       setUsernameInput('')
@@ -308,6 +311,14 @@ const EditorPage: React.FC = () => {
     if (e.key === 'Enter') {
       handleUsernameSubmit()
     }
+  }
+
+  const handleUsernameSkip = () => {
+    const defaultName = `User ${userId.substring(0, 4)}`
+    localStorage.setItem('currentUsername', defaultName)
+    setDisplayUsername(defaultName)
+    setShowUsernameDialog(false)
+    setUsernameInput('')
   }
 
   const handleSave = async () => {
@@ -398,10 +409,7 @@ const EditorPage: React.FC = () => {
                 Continue
               </button>
               <button
-                onClick={() => {
-                  setDisplayUsername(`User ${userId.substring(0, 4)}`)
-                  setShowUsernameDialog(false)
-                }}
+                onClick={handleUsernameSkip}
                 className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-semibold transition-colors"
               >
                 Skip

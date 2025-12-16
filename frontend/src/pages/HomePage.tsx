@@ -15,6 +15,9 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState('')
+  const [showUsernameDialog, setShowUsernameDialog] = useState(false)
+  const [usernameInput, setUsernameInput] = useState('')
+  const [pendingSnippetCreation, setPendingSnippetCreation] = useState(false)
 
   // Get snippets from Redux store
   const snippets = useSelector((state: any) => state.snippet?.items || [])
@@ -52,16 +55,87 @@ const HomePage: React.FC = () => {
   })
 
   const handleCreateNewSnippet = () => {
-    // Generate a tiny code for the new snippet with special prefix for new snippets
+    // Show username dialog first
+    setPendingSnippetCreation(true)
+    setShowUsernameDialog(true)
+  }
+
+  const handleUsernameSubmit = () => {
+    const username = usernameInput.trim()
+    if (username) {
+      // Store username in localStorage for EditorPage to use
+      localStorage.setItem('currentUsername', username)
+      setShowUsernameDialog(false)
+      setUsernameInput('')
+      
+      // NOW generate the tiny code and navigate
+      const tinyCode = createSnippetShare('new-snippet').tinyCode
+      const newSnippetTinyCode = `new-snippet-${tinyCode}`
+      logger.info('Creating new snippet with share URL', { tinyCode: newSnippetTinyCode, username })
+      navigate(`/join/${newSnippetTinyCode}`)
+      
+      setPendingSnippetCreation(false)
+    }
+  }
+
+  const handleUsernameKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleUsernameSubmit()
+    }
+  }
+
+  const handleUsernameSkip = () => {
+    // Generate default username
+    const defaultUsername = `User ${Math.random().toString(36).substr(2, 4)}`
+    localStorage.setItem('currentUsername', defaultUsername)
+    setShowUsernameDialog(false)
+    setUsernameInput('')
+    
+    // Navigate with default username
     const tinyCode = createSnippetShare('new-snippet').tinyCode
     const newSnippetTinyCode = `new-snippet-${tinyCode}`
-    logger.info('Creating new snippet with share URL', { tinyCode: newSnippetTinyCode })
-    // Navigate to the tiny URL so it can be shared immediately
+    logger.info('Creating new snippet with default username', { tinyCode: newSnippetTinyCode, username: defaultUsername })
     navigate(`/join/${newSnippetTinyCode}`)
+    
+    setPendingSnippetCreation(false)
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Username Dialog */}
+      {showUsernameDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4 border border-blue-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Join as Collaborator</h2>
+            <p className="text-gray-600 mb-6">Enter your name to start collaborating on this snippet. Your name will be shown to others viewing this code.</p>
+            <input
+              type="text"
+              placeholder="Enter your name (e.g., Alice, Bob)"
+              value={usernameInput}
+              onChange={(e) => setUsernameInput(e.target.value)}
+              onKeyPress={handleUsernameKeyPress}
+              autoFocus
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none mb-6 text-gray-900"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleUsernameSubmit}
+                disabled={!usernameInput.trim()}
+                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
+              >
+                Continue
+              </button>
+              <button
+                onClick={handleUsernameSkip}
+                className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-colors"
+              >
+                Use Random Name
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
