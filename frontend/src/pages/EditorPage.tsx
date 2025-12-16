@@ -179,6 +179,9 @@ const EditorPage: React.FC = () => {
     }
   }, [snippet, isNew])
 
+  // Track if we've already joined the presence to avoid duplicates
+  const hasJoinedPresenceRef = useRef<boolean>(false)
+
   // Track user presence in the snippet
   useEffect(() => {
     // Use tinyCode for new snippets, resolvedSnippetId for existing snippets
@@ -187,24 +190,35 @@ const EditorPage: React.FC = () => {
     // Use displayUsername if available, otherwise use a default
     const currentUsername = displayUsername || `User ${userId.substring(0, 4)}`
     
-    if (!presenceTrackingId || presenceTrackingId === 'new') {
+    if (!presenceTrackingId || presenceTrackingId === 'new' || !displayUsername) {
       return
     }
     
     const presenceKey = `presence_${presenceTrackingId}`
+    
+    // Only add ourselves once per presenceTrackingId
+    if (hasJoinedPresenceRef.current) {
+      console.log('Already joined presence, skipping duplicate join', { presenceTrackingId, userId })
+      return
+    }
+    
+    hasJoinedPresenceRef.current = true
+    
     const currentPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
     
     // Track how many users were present before we added ourselves
     const userCountBefore = currentPresence.length
     
     // Add current user if not already present
-    if (!currentPresence.find((u: any) => u.id === userId)) {
+    const userExists = currentPresence.find((u: any) => u.id === userId)
+    if (!userExists) {
       currentPresence.push({
         id: userId,
         username: currentUsername,
         timestamp: new Date().toISOString()
       })
       localStorage.setItem(presenceKey, JSON.stringify(currentPresence))
+      console.log('User added to presence', { userId, username: currentUsername, presenceKey })
       
       // Show notifications for users who were already there (other users)
       if (userCountBefore > 0) {
@@ -219,6 +233,14 @@ const EditorPage: React.FC = () => {
             }
           })
       }
+    } else {
+      console.log('User already in presence, updating username if needed', { userId, username: currentUsername })
+      // Update username if it changed
+      const userIndex = currentPresence.findIndex((u: any) => u.id === userId)
+      if (userIndex >= 0 && currentPresence[userIndex].username !== currentUsername) {
+        currentPresence[userIndex].username = currentUsername
+        localStorage.setItem(presenceKey, JSON.stringify(currentPresence))
+      }
     }
 
     // Set initial active users (including ourselves and others)
@@ -231,7 +253,7 @@ const EditorPage: React.FC = () => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === presenceKey && e.newValue) {
         const newPresence = JSON.parse(e.newValue)
-        console.log('Storage change detected in presence', { presenceKey, newPresence })
+        console.log('Storage change detected in presence from other window', { presenceKey, count: newPresence.length })
         
         // Update active users (all users including ourselves)
         setActiveUsers(newPresence.map((u: any) => ({
@@ -260,12 +282,16 @@ const EditorPage: React.FC = () => {
       const updatedPresence = finalPresence.filter((u: any) => u.id !== userId)
       if (updatedPresence.length > 0) {
         localStorage.setItem(presenceKey, JSON.stringify(updatedPresence))
+        console.log('User removed from presence on unmount', { userId, presenceKey })
       } else {
         localStorage.removeItem(presenceKey)
+        console.log('Presence cleared on unmount (last user)', { presenceKey })
       }
       // Clear active users on unmount
       setActiveUsers([])
       setUserNotifications([])
+      // Reset the join flag
+      hasJoinedPresenceRef.current = false
     }
   }, [tinyCode, resolvedSnippetId, userId, displayUsername])
 
