@@ -60,9 +60,21 @@ export class WebSocketService {
       try {
         // Use relative path for WebSocket URL
         // This works in both development and Docker environments
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        // Note: SockJS handles protocol fallback automatically, so we can use http:// for the URL
+        // and it will upgrade to ws:// or wss:// as needed
         const host = window.location.host
-        const wsUrl = `${protocol}//${host}/api/ws`
+        
+        // Use the same protocol as the page but SockJS will handle fallbacks
+        // In HTTPS environment, SockJS will try wss -> ws fallback
+        // In HTTP environment, SockJS will use ws
+        let wsUrl: string
+        if (window.location.protocol === 'https:') {
+          // For HTTPS pages, use https:// endpoint and let SockJS upgrade to wss://
+          wsUrl = `https://${host}/api/ws`
+        } else {
+          // For HTTP pages, use http:// endpoint and let SockJS use ws://
+          wsUrl = `http://${host}/api/ws`
+        }
         
         console.log('[WebSocket] Connecting to:', wsUrl)
         const socket = new SockJS(wsUrl)
