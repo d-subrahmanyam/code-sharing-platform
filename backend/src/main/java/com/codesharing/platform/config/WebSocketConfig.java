@@ -27,7 +27,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     // Clients will connect to: ws://localhost:8080/ws
     registry
       .addEndpoint("/ws")
-      .setAllowedOrigins("*")  // Allow connections from any origin
+      .setAllowedOriginPatterns("https://localhost", "http://localhost", "http://localhost:*", "https://localhost:*", "*")  // Allow local connections and any origin pattern
       .withSockJS();  // Fallback to SockJS for browsers that don't support WebSocket
   }
 
