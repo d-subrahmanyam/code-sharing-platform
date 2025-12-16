@@ -156,6 +156,9 @@ const EditorPage: React.FC = () => {
       // Track how many users were present before we added ourselves
       const userCountBefore = currentPresence.length
       
+      // Track which users we've already shown notifications for (to avoid duplicates)
+      const notifiedUserIds = new Set<string>()
+      
       // Add current user if not already present
       if (!currentPresence.find((u: any) => u.id === userId)) {
         currentPresence.push({
@@ -172,14 +175,11 @@ const EditorPage: React.FC = () => {
           currentPresence
             .filter((u: any) => u.id !== userId)
             .forEach((u: any) => {
-              const newUser = { id: u.id, username: u.username, timestamp: new Date(u.timestamp) }
-              setUserNotifications(prev => {
-                // Avoid duplicate notifications
-                if (!prev.find(n => n.id === newUser.id)) {
-                  return [...prev, newUser]
-                }
-                return prev
-              })
+              if (!notifiedUserIds.has(u.id)) {
+                notifiedUserIds.add(u.id)
+                const newUser = { id: u.id, username: u.username, timestamp: new Date(u.timestamp) }
+                setUserNotifications(prev => [...prev, newUser])
+              }
             })
         }
       }
@@ -198,15 +198,11 @@ const EditorPage: React.FC = () => {
           
           // Show notification for NEW users only (not ourselves)
           newPresence.forEach((user: any) => {
-            if (user.id !== userId && !userNotifications.find(n => n.id === user.id)) {
+            if (user.id !== userId && !notifiedUserIds.has(user.id)) {
+              notifiedUserIds.add(user.id)
               console.log('New user detected', { userId: user.id, username: user.username })
               const newUser = { id: user.id, username: user.username, timestamp: new Date(user.timestamp) }
-              setUserNotifications(prev => {
-                if (!prev.find(n => n.id === newUser.id)) {
-                  return [...prev, newUser]
-                }
-                return prev
-              })
+              setUserNotifications(prev => [...prev, newUser])
             }
           })
         }
