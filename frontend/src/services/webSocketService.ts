@@ -46,41 +46,61 @@ export class WebSocketService {
    * Connect to WebSocket server
    */
   async connect(userId: string): Promise<void> {
-    if (this.isConnected) {
+    if (this.isConnected && this.stompClient?.connected) {
+      console.log('[WebSocket] Already connected, skipping')
       return
     }
 
     if (this.connectionPromise) {
+      console.log('[WebSocket] Connection in progress, returning existing promise')
       return this.connectionPromise
     }
 
     this.connectionPromise = new Promise((resolve, reject) => {
-      const socket = new SockJS(
-        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/ws`
-      )
+      try {
+        // Use relative path for WebSocket URL
+        // This works in both development and Docker environments
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const host = window.location.host
+        const wsUrl = `${protocol}//${host}/api/ws`
+        
+        console.log('[WebSocket] Connecting to:', wsUrl)
+        const socket = new SockJS(wsUrl)
 
-      this.stompClient = Stomp.over(socket)
+        this.stompClient = Stomp.over(socket)
 
-      // Disable debug logging in production
-      this.stompClient.debug = (msg: string) => {
-        if (import.meta.env.DEV) {
-          console.log('[WebSocket]', msg)
+        // Disable debug logging in production
+        this.stompClient.debug = (msg: string) => {
+          if (import.meta.env.DEV) {
+            console.log('[STOMP]', msg)
+          }
         }
+
+        this.stompClient.connect(
+          { userId },
+          () => {
+            console.log('[WebSocket] ✓ Connected successfully')
+            this.isConnected = true
+            this.reconnectAttempts = 0
+            resolve()
+          },
+          (error: any) => {
+            console.error('[WebSocket] ✗ Connection error:', error)
+            this.handleConnectionError(resolve, reject)
+          }
+        )
+
+        // Timeout for connection attempt
+        setTimeout(() => {
+          if (!this.isConnected) {
+            console.error('[WebSocket] ✗ Connection timeout')
+            this.handleConnectionError(resolve, reject)
+          }
+        }, 10000)
+      } catch (error) {
+        console.error('[WebSocket] ✗ Failed to create connection:', error)
+        reject(error)
       }
-
-      this.stompClient.connect(
-        { userId },
-        () => {
-          console.log('WebSocket connected')
-          this.isConnected = true
-          this.reconnectAttempts = 0
-          resolve()
-        },
-        (error: any) => {
-          console.error('WebSocket connection error:', error)
-          this.handleConnectionError(resolve, reject)
-        }
-      )
     })
 
     return this.connectionPromise
