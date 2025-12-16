@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
@@ -49,6 +49,25 @@ const EditorPage: React.FC = () => {
 
   const [newTag, setNewTag] = useState('')
   const [currentUser] = useState(null) // In real app, get from Redux auth state
+  const [usernameInput, setUsernameInput] = useState('')
+  const [showUsernameDialog, setShowUsernameDialog] = useState(false)
+
+  // Stable userId ref for presence tracking - generated once per component lifecycle
+  const userIdRef = useRef<string | null>(null)
+  if (!userIdRef.current) {
+    userIdRef.current = Math.random().toString(36).substr(2, 9)
+  }
+  const userId = userIdRef.current
+  
+  // Username - either entered by user or generated
+  const [displayUsername, setDisplayUsername] = useState<string | null>(null)
+  
+  // Show username dialog on mount if no username set
+  useEffect(() => {
+    if (!displayUsername && (tinyCode || resolvedSnippetId === 'new')) {
+      setShowUsernameDialog(true)
+    }
+  }, [])
 
   const snippet = useSelector((state: any) =>
     isNew ? null : state.snippet?.items.find((s: any) => s.id === resolvedSnippetId)
@@ -145,11 +164,10 @@ const EditorPage: React.FC = () => {
     // Use tinyCode for new snippets, resolvedSnippetId for existing snippets
     const presenceTrackingId = tinyCode || resolvedSnippetId
     
-    if (presenceTrackingId && presenceTrackingId !== 'new') {
-      // Store this user's presence in localStorage for cross-window communication
-      const userId = Math.random().toString(36).substr(2, 9)
-      const username = `User ${userId.substring(0, 4)}`
-      
+    // Use displayUsername if available, otherwise use a default
+    const currentUsername = displayUsername || `User ${userId.substring(0, 4)}`
+    
+    if (presenceTrackingId && presenceTrackingId !== 'new' && displayUsername) {
       const presenceKey = `presence_${presenceTrackingId}`
       const currentPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
       
@@ -163,7 +181,7 @@ const EditorPage: React.FC = () => {
       if (!currentPresence.find((u: any) => u.id === userId)) {
         currentPresence.push({
           id: userId,
-          username: username,
+          username: currentUsername,
           timestamp: new Date().toISOString()
         })
         localStorage.setItem(presenceKey, JSON.stringify(currentPresence))
@@ -231,7 +249,7 @@ const EditorPage: React.FC = () => {
         setUserNotifications([])
       }
     }
-  }, [tinyCode, resolvedSnippetId])
+  }, [tinyCode, resolvedSnippetId, userId, displayUsername])
 
   const languages = [
     'javascript',
@@ -275,6 +293,21 @@ const EditorPage: React.FC = () => {
       ...prev,
       tags: prev.tags.filter(t => t !== tag),
     }))
+  }
+
+  const handleUsernameSubmit = () => {
+    const name = usernameInput.trim()
+    if (name) {
+      setDisplayUsername(name)
+      setShowUsernameDialog(false)
+      setUsernameInput('')
+    }
+  }
+
+  const handleUsernameKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleUsernameSubmit()
+    }
   }
 
   const handleSave = async () => {
@@ -342,6 +375,42 @@ const EditorPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Username Dialog */}
+      {showUsernameDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 border-2 border-blue-500 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-2xl font-bold text-white mb-4">Enter Your Username</h2>
+            <p className="text-gray-300 mb-6">Your username will be shown when you join a collaborative session</p>
+            <input
+              type="text"
+              placeholder="Enter your username (e.g., John)"
+              value={usernameInput}
+              onChange={(e) => setUsernameInput(e.target.value)}
+              onKeyPress={handleUsernameKeyPress}
+              autoFocus
+              className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:border-blue-500 focus:outline-none mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleUsernameSubmit}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                Continue
+              </button>
+              <button
+                onClick={() => {
+                  setDisplayUsername(`User ${userId.substring(0, 4)}`)
+                  setShowUsernameDialog(false)
+                }}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-semibold transition-colors"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Resolution Status - Loading or Error */}
       {isResolving && (
         <div className="bg-blue-900 border-b border-blue-700 px-6 py-3 flex items-center gap-3 text-blue-200">
@@ -380,6 +449,12 @@ const EditorPage: React.FC = () => {
           </h1>
         </div>
         <div className="flex items-center gap-3">
+          {displayUsername && (
+            <div className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              {displayUsername}
+            </div>
+          )}
           {shareableUrl && (
             <button
               onClick={() => setShowShareModal(true)}
