@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
 import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight, FiEyeOff } from 'react-icons/fi'
 import Editor from 'react-simple-code-editor'
-import Prism from 'prismjs'
+import 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-java'
@@ -377,6 +377,7 @@ const EditorPage: React.FC = () => {
                     }
                     const lang = languageMap[formData.language] || 'javascript'
                     try {
+                      const Prism = (window as any).Prism
                       return Prism.highlight(code, Prism.languages[lang] || Prism.languages.javascript, lang)
                     } catch (error) {
                       return code
