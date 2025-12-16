@@ -25,7 +25,7 @@ const EditorPage: React.FC = () => {
   const [resolvedSnippetId, setResolvedSnippetId] = useState<string | null>(directSnippetId || null)
   const [isResolving, setIsResolving] = useState(false)
   const [resolutionError, setResolutionError] = useState<string | null>(null)
-  const [isNew] = useState(resolvedSnippetId === 'new')
+  const isNew = resolvedSnippetId === 'new' // Derive from current state, not initial state
   const [isSaving, setIsSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
