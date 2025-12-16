@@ -18,10 +18,12 @@ export const router = createBrowserRouter([
   {
     path: '/editor/:snippetId',
     element: <EditorPage />,
+    errorElement: <NotFoundPage />,
   },
   {
     path: '/join/:tinyCode',
     element: <EditorPage />,
+    errorElement: <NotFoundPage />,
   },
   {
     path: '/login',

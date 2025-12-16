@@ -21,6 +21,9 @@ const EditorPage: React.FC = () => {
   const { snippetId: directSnippetId, tinyCode } = useParams<{ snippetId?: string; tinyCode?: string }>()
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  
+  // Debug logging
+  console.log('EditorPage loaded', { directSnippetId, tinyCode })
 
   const [resolvedSnippetId, setResolvedSnippetId] = useState<string | null>(directSnippetId || null)
   const [isResolving, setIsResolving] = useState(false)
