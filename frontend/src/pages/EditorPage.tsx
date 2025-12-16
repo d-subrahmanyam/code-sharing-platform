@@ -150,6 +150,9 @@ const EditorPage: React.FC = () => {
       const presenceKey = `presence_${resolvedSnippetId}`
       const currentPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
       
+      // Track how many users were present before we added ourselves
+      const userCountBefore = currentPresence.length
+      
       // Add current user if not already present
       if (!currentPresence.find((u: any) => u.id === userId)) {
         currentPresence.push({
@@ -159,33 +162,74 @@ const EditorPage: React.FC = () => {
         })
         localStorage.setItem(presenceKey, JSON.stringify(currentPresence))
         
-        // Show notification for other users
-        const newUser = { id: userId, username: username, timestamp: new Date() }
-        setUserNotifications(prev => [...prev, newUser])
+        // Only show notification if there were OTHER users before we joined
+        if (userCountBefore > 0) {
+          console.log('Other users detected, showing their presence', { userCountBefore, otherUsers: currentPresence })
+          // Show notifications for users who were already there
+          currentPresence
+            .filter((u: any) => u.id !== userId)
+            .forEach((u: any) => {
+              const newUser = { id: u.id, username: u.username, timestamp: new Date(u.timestamp) }
+              setUserNotifications(prev => {
+                // Avoid duplicate notifications
+                if (!prev.find(n => n.id === newUser.id)) {
+                  return [...prev, newUser]
+                }
+                return prev
+              })
+            })
+        }
       }
 
       // Listen for storage changes (other windows/tabs)
       const handleStorageChange = (e: StorageEvent) => {
         if (e.key === presenceKey && e.newValue) {
           const newPresence = JSON.parse(e.newValue)
+          console.log('Storage change detected', { presenceKey, newPresence })
+          
+          // Update active users (including ourselves)
           setActiveUsers(newPresence.map((u: any) => ({
             ...u,
             timestamp: new Date(u.timestamp)
           })))
+          
+          // Show notification for NEW users only (not ourselves)
+          newPresence.forEach((user: any) => {
+            if (user.id !== userId && !userNotifications.find(n => n.id === user.id)) {
+              console.log('New user detected', { userId: user.id, username: user.username })
+              const newUser = { id: user.id, username: user.username, timestamp: new Date(user.timestamp) }
+              setUserNotifications(prev => {
+                if (!prev.find(n => n.id === newUser.id)) {
+                  return [...prev, newUser]
+                }
+                return prev
+              })
+            }
+          })
         }
       }
 
       window.addEventListener('storage', handleStorageChange)
+      
+      // Also set initial active users (including ourselves and others)
+      setActiveUsers(currentPresence.map((u: any) => ({
+        ...u,
+        timestamp: new Date(u.timestamp)
+      })))
 
       return () => {
         window.removeEventListener('storage', handleStorageChange)
         // Clean up presence on unmount
-        const updatedPresence = currentPresence.filter((u: any) => u.id !== userId)
+        const finalPresence = JSON.parse(localStorage.getItem(presenceKey) || '[]')
+        const updatedPresence = finalPresence.filter((u: any) => u.id !== userId)
         if (updatedPresence.length > 0) {
           localStorage.setItem(presenceKey, JSON.stringify(updatedPresence))
         } else {
           localStorage.removeItem(presenceKey)
         }
+        // Clear active users on unmount
+        setActiveUsers([])
+        setUserNotifications([])
       }
     }
   }, [resolvedSnippetId])
