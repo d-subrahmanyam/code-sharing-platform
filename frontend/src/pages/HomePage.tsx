@@ -52,11 +52,12 @@ const HomePage: React.FC = () => {
   })
 
   const handleCreateNewSnippet = () => {
-    // Generate a tiny code for the new snippet
-    const share = createSnippetShare('new-snippet')
-    logger.info('Creating new snippet with share URL', { tinyCode: share.tinyCode })
+    // Generate a tiny code for the new snippet with special prefix for new snippets
+    const tinyCode = createSnippetShare('new-snippet').tinyCode
+    const newSnippetTinyCode = `new-snippet-${tinyCode}`
+    logger.info('Creating new snippet with share URL', { tinyCode: newSnippetTinyCode })
     // Navigate to the tiny URL so it can be shared immediately
-    navigate(`/join/${share.tinyCode}`)
+    navigate(`/join/${newSnippetTinyCode}`)
   }
 
   return (
