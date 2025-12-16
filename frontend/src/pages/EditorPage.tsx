@@ -52,15 +52,30 @@ const EditorPage: React.FC = () => {
   const [usernameInput, setUsernameInput] = useState('')
   const [showUsernameDialog, setShowUsernameDialog] = useState(false)
 
-  // Stable userId ref for presence tracking - generated once per component lifecycle
+  // Stable userId ref for presence tracking - reuse from localStorage if username matches
   const userIdRef = useRef<string | null>(null)
   if (!userIdRef.current) {
-    userIdRef.current = Math.random().toString(36).substr(2, 9)
+    // Check if we have a stored userId for this username
+    const currentUsername = localStorage.getItem('currentUsername')
+    if (currentUsername) {
+      const storedUserId = localStorage.getItem(`userId_${currentUsername}`)
+      if (storedUserId) {
+        userIdRef.current = storedUserId
+      }
+    }
+    // If no stored userId, generate a new one
+    if (!userIdRef.current) {
+      userIdRef.current = Math.random().toString(36).substr(2, 9)
+    }
   }
   const userId = userIdRef.current
   
   // Track notified users across effect re-runs to prevent duplicate notifications
   const notifiedUserIdsRef = useRef<Set<string>>(new Set())
+  
+  // Track users who are typing
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
+  const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   
   // Username - either from localStorage (set on HomePage) or entered by user
   const [displayUsername, setDisplayUsername] = useState<string | null>(() => {
@@ -263,13 +278,15 @@ const EditorPage: React.FC = () => {
     }
 
     const codeKey = `code_${presenceTrackingId}`
+    const typingKey = `typing_${presenceTrackingId}`
     
-    // Listen for code changes from other windows
-    const handleCodeChange = (e: StorageEvent) => {
+    // Listen for code changes and typing indicators from other windows
+    const handleStorageChange = (e: StorageEvent) => {
+      // Handle code changes
       if (e.key === codeKey && e.newValue) {
         try {
           const codeData = JSON.parse(e.newValue)
-          console.log('Code change detected from another window', { code: codeData.code.substring(0, 50) })
+          console.log('Code change detected from another window', { userId: codeData.userId, code: codeData.code.substring(0, 50) })
           // Update the code in the editor from other window's changes
           setFormData(prev => ({
             ...prev,
@@ -280,29 +297,64 @@ const EditorPage: React.FC = () => {
           console.error('Error parsing code change', error)
         }
       }
+      
+      // Handle typing indicators
+      if (e.key === typingKey && e.newValue) {
+        try {
+          const typingData = JSON.parse(e.newValue)
+          setTypingUsers(new Set(typingData.filter((uid: string) => uid !== userId)))
+        } catch (error) {
+          console.error('Error parsing typing data', error)
+        }
+      }
     }
 
-    window.addEventListener('storage', handleCodeChange)
+    window.addEventListener('storage', handleStorageChange)
 
     return () => {
-      window.removeEventListener('storage', handleCodeChange)
+      window.removeEventListener('storage', handleStorageChange)
     }
-  }, [tinyCode, resolvedSnippetId])
+  }, [tinyCode, resolvedSnippetId, userId])
 
   // Debounce code changes to avoid excessive localStorage writes
   const codeChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   const handleCodeChange = (code: string) => {
     // Update local state immediately for responsive UI
     setFormData(prev => ({ ...prev, code }))
     
-    // Debounce the localStorage update
+    // Broadcast typing indicator
+    const presenceTrackingId = tinyCode || resolvedSnippetId
+    if (presenceTrackingId && presenceTrackingId !== 'new') {
+      const typingKey = `typing_${presenceTrackingId}`
+      const currentTyping = JSON.parse(localStorage.getItem(typingKey) || '[]')
+      if (!currentTyping.includes(userId)) {
+        currentTyping.push(userId)
+      }
+      localStorage.setItem(typingKey, JSON.stringify(currentTyping))
+      
+      // Clear typing indicator after 1 second of inactivity
+      if (typingIndicatorTimeoutRef.current) {
+        clearTimeout(typingIndicatorTimeoutRef.current)
+      }
+      typingIndicatorTimeoutRef.current = setTimeout(() => {
+        const typing = JSON.parse(localStorage.getItem(typingKey) || '[]')
+        const updatedTyping = typing.filter((uid: string) => uid !== userId)
+        if (updatedTyping.length > 0) {
+          localStorage.setItem(typingKey, JSON.stringify(updatedTyping))
+        } else {
+          localStorage.removeItem(typingKey)
+        }
+      }, 1000)
+    }
+    
+    // Debounce the code storage and auto-save
     if (codeChangeTimeoutRef.current) {
       clearTimeout(codeChangeTimeoutRef.current)
     }
     
     codeChangeTimeoutRef.current = setTimeout(() => {
-      const presenceTrackingId = tinyCode || resolvedSnippetId
       if (presenceTrackingId && presenceTrackingId !== 'new') {
         const codeKey = `code_${presenceTrackingId}`
         const codeData = {
@@ -314,8 +366,25 @@ const EditorPage: React.FC = () => {
         }
         localStorage.setItem(codeKey, JSON.stringify(codeData))
         console.log('Code change saved to localStorage', { codeKey, codeLength: code.length })
+        
+        // Auto-save to backend if this is an existing snippet
+        if (!isNew && resolvedSnippetId && resolvedSnippetId !== 'new') {
+          dispatch({
+            type: SNIPPET_UPDATE_REQUEST,
+            payload: {
+              id: resolvedSnippetId,
+              code,
+              title: formData.title,
+              description: formData.description,
+              language: formData.language,
+              tags: formData.tags,
+              isPublic: formData.isPublic,
+            },
+          } as any)
+          console.log('Auto-saving code to backend', { snippetId: resolvedSnippetId })
+        }
       }
-    }, 300) // 300ms debounce to reduce localStorage writes
+    }, 1000) // 1 second debounce for auto-save
   }
 
   // Cleanup code change timeout on unmount
@@ -323,6 +392,9 @@ const EditorPage: React.FC = () => {
     return () => {
       if (codeChangeTimeoutRef.current) {
         clearTimeout(codeChangeTimeoutRef.current)
+      }
+      if (typingIndicatorTimeoutRef.current) {
+        clearTimeout(typingIndicatorTimeoutRef.current)
       }
     }
   }, [])
@@ -375,6 +447,8 @@ const EditorPage: React.FC = () => {
     const name = usernameInput.trim()
     if (name) {
       localStorage.setItem('currentUsername', name)
+      // Store userId for this username to prevent duplicates on refresh
+      localStorage.setItem(`userId_${name}`, userId)
       setDisplayUsername(name)
       setShowUsernameDialog(false)
       setUsernameInput('')
@@ -845,6 +919,26 @@ const EditorPage: React.FC = () => {
           <div className="mt-1 text-xs text-blue-200">
             {activeUsers.slice(0, 3).map(u => u.username).join(', ')}
             {activeUsers.length > 3 && ` +${activeUsers.length - 3}`}
+          </div>
+        </div>
+      )}
+
+      {/* Typing Indicator - Show who is typing */}
+      {typingUsers.size > 0 && (
+        <div className="fixed top-40 right-6 bg-purple-900 border border-purple-700 rounded-lg px-4 py-2 text-purple-100 text-xs pointer-events-auto z-40">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+            <span className="text-purple-200">
+              {activeUsers
+                .filter(u => typingUsers.has(u.id))
+                .map(u => u.username)
+                .join(', ')} 
+              {activeUsers.filter(u => typingUsers.has(u.id)).length === 1 ? ' is' : ' are'} typing...
+            </span>
           </div>
         </div>
       )}
