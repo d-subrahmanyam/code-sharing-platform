@@ -49,15 +49,34 @@ const EditorPage: React.FC = () => {
   const [usernameInput, setUsernameInput] = useState('')
   const [showUsernameDialog, setShowUsernameDialog] = useState(false)
 
-  // Stable userId ref for presence tracking - generated once per component lifecycle
+  // Stable userId ref for presence tracking - persisted across sessions
   const userIdRef = useRef<string | null>(null)
   if (!userIdRef.current) {
-    userIdRef.current = Math.random().toString(36).substr(2, 9)
+    // Try to get from localStorage first, otherwise generate new one
+    const storedUserId = localStorage.getItem('userId')
+    if (storedUserId) {
+      userIdRef.current = storedUserId
+    } else {
+      const newUserId = Math.random().toString(36).substr(2, 9)
+      localStorage.setItem('userId', newUserId)
+      userIdRef.current = newUserId
+    }
   }
   const userId = userIdRef.current
 
   // Track if user is the owner
   const isOwner = snippetOwnerId === userId || isNew
+
+  // Debug logging for owner detection
+  useEffect(() => {
+    console.log('[EditorPage] Owner Detection:', {
+      userId,
+      snippetOwnerId,
+      isNew,
+      isOwner,
+      match: snippetOwnerId === userId
+    })
+  }, [userId, snippetOwnerId, isNew, isOwner])
 
   // Set owner ID for new snippets
   useEffect(() => {
@@ -178,9 +197,10 @@ const EditorPage: React.FC = () => {
       // Set the owner ID from the snippet
       if (snippet.authorId) {
         setSnippetOwnerId(snippet.authorId)
+        console.log('[EditorPage] Loaded snippet owner:', snippet.authorId, 'Current user:', userId)
       }
     }
-  }, [snippet, isNew])
+  }, [snippet, isNew, userId])
 
   // Use WebSocket for real-time collaboration
   const collaborationId = tinyCode || resolvedSnippetId
@@ -367,6 +387,7 @@ const EditorPage: React.FC = () => {
 
     // Send metadata update to other users if owner is making changes
     if (isOwner && ['title', 'description', 'language'].includes(name)) {
+      console.log('[EditorPage] Sending metadata update:', name, value)
       sendMetadataUpdate({
         [name]: type === 'checkbox' ? checked : value,
       })
@@ -384,6 +405,7 @@ const EditorPage: React.FC = () => {
       
       // Send metadata update to other users if owner is making changes
       if (isOwner) {
+        console.log('[EditorPage] Sending tag update:', updatedTags)
         sendMetadataUpdate({ tags: updatedTags })
       }
     }
