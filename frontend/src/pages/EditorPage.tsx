@@ -33,6 +33,7 @@ const EditorPage: React.FC = () => {
   const [resolutionError, setResolutionError] = useState<string | null>(null)
   const isNew = resolvedSnippetId === 'new' // Derive from current state, not initial state
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingSnippet, setIsLoadingSnippet] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [shareableUrl, setShareableUrl] = useState<string | null>(null)
@@ -65,7 +66,9 @@ const EditorPage: React.FC = () => {
   const userId = userIdRef.current
 
   // Track if user is the owner
-  const isOwner = snippetOwnerId === userId || isNew
+  // For new snippets: user is automatically owner
+  // For existing snippets: only owner if userId matches snippetOwnerId from backend
+  const isOwner = isNew ? true : (snippetOwnerId === userId)
 
   // Debug logging for owner detection
   useEffect(() => {
@@ -74,9 +77,10 @@ const EditorPage: React.FC = () => {
       snippetOwnerId,
       isNew,
       isOwner,
+      resolvedSnippetId,
       match: snippetOwnerId === userId
     })
-  }, [userId, snippetOwnerId, isNew, isOwner])
+  }, [userId, snippetOwnerId, isNew, isOwner, resolvedSnippetId])
 
   // Set owner ID for new snippets
   useEffect(() => {
@@ -177,6 +181,8 @@ const EditorPage: React.FC = () => {
 
   useEffect(() => {
     if (!isNew && resolvedSnippetId && !tinyCode) {
+      console.log('[EditorPage] Fetching snippet data...')
+      setIsLoadingSnippet(true)
       dispatch({
         type: SNIPPET_FETCH_REQUEST,
         payload: { id: resolvedSnippetId },
@@ -186,6 +192,12 @@ const EditorPage: React.FC = () => {
 
   useEffect(() => {
     if (snippet && !isNew) {
+      console.log('[EditorPage] Loading snippet data:', {
+        snippetId: snippet.id,
+        authorId: snippet.authorId,
+        currentUserId: userId,
+        willBeOwner: snippet.authorId === userId
+      })
       setFormData({
         title: snippet.title || '',
         description: snippet.description || '',
@@ -197,8 +209,13 @@ const EditorPage: React.FC = () => {
       // Set the owner ID from the snippet
       if (snippet.authorId) {
         setSnippetOwnerId(snippet.authorId)
-        console.log('[EditorPage] Loaded snippet owner:', snippet.authorId, 'Current user:', userId)
+        console.log('[EditorPage] ✓ Set snippet owner ID:', snippet.authorId)
+        console.log('[EditorPage] ✓ Current user ID:', userId)
+        console.log('[EditorPage] ✓ Is owner?', snippet.authorId === userId)
       }
+      // Clear loading state once data is loaded
+      setIsLoadingSnippet(false)
+      console.log('[EditorPage] ✓ Snippet data fully loaded')
     }
   }, [snippet, isNew, userId])
 
@@ -233,14 +250,23 @@ const EditorPage: React.FC = () => {
       })
     },
     (change) => {
-      console.log('[WebSocket] Code change received from:', change.username)
+      console.log('[WebSocket] Code change received:', {
+        from: change.username,
+        userId: change.userId,
+        currentUserId: userId,
+        willUpdate: change.userId !== userId,
+        codeLength: change.code?.length
+      })
       // Only update code if it's from another user
       if (change.userId !== userId) {
+        console.log('[WebSocket] ✓ Applying code change from other user')
         setFormData(prev => ({
           ...prev,
           code: change.code,
           language: change.language,
         }))
+      } else {
+        console.log('[WebSocket] ✗ Ignoring own code change')
       }
     },
     (typingUsers) => {
@@ -249,9 +275,20 @@ const EditorPage: React.FC = () => {
       setTypingUsers(typingUsers.filter((u: any) => u.userId !== userId))
     },
     (metadata) => {
-      console.log('[WebSocket] Metadata update received:', metadata)
+      console.log('[WebSocket] Metadata update received:', {
+        userId: metadata.userId,
+        currentUserId: userId,
+        willUpdate: metadata.userId !== userId,
+        changes: {
+          title: metadata.title,
+          description: metadata.description,
+          language: metadata.language,
+          tags: metadata.tags
+        }
+      })
       // Only update if it's from another user (owner)
       if (metadata.userId !== userId) {
+        console.log('[WebSocket] ✓ Applying metadata changes from owner')
         setFormData(prev => ({
           ...prev,
           title: metadata.title !== undefined ? metadata.title : prev.title,
@@ -262,6 +299,8 @@ const EditorPage: React.FC = () => {
         // Update line number based on new language if needed
         const currentLine = formData.code.split('\n').length
         setCurrentLineNumber(currentLine)
+      } else {
+        console.log('[WebSocket] ✗ Ignoring own metadata change')
       }
     }
   )
@@ -546,6 +585,19 @@ const EditorPage: React.FC = () => {
         </div>
       )}
 
+      {/* Loading Snippet Overlay - Full screen blocker */}
+      {isLoadingSnippet && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="mb-6">
+              <div className="animate-spin h-16 w-16 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Loading Snippet...</h2>
+            <p className="text-gray-400">Please wait while we load the snippet content and metadata</p>
+          </div>
+        </div>
+      )}
+
       {/* Resolution Status - Loading or Error */}
       {isResolving && (
         <div className="bg-blue-900 dark:bg-blue-950 border-b border-blue-700 dark:border-blue-800 px-6 py-3 flex items-center gap-3 text-blue-200">
@@ -588,6 +640,12 @@ const EditorPage: React.FC = () => {
           <ActiveUsers users={activeUsers} ownerId={snippetOwnerId} />
 
           <div className="flex items-center gap-3">
+            {/* Debug: Show user role */}
+            {!isNew && (
+              <div className={`px-3 py-1 rounded text-xs font-bold ${isOwner ? 'bg-yellow-600 text-black' : 'bg-gray-600 text-white'}`}>
+                {isOwner ? '👑 OWNER' : '👤 JOINEE'}
+              </div>
+            )}
             {displayUsername && (
               <div className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
