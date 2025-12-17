@@ -50,17 +50,35 @@ const EditorPage: React.FC = () => {
   const [usernameInput, setUsernameInput] = useState('')
   const [showUsernameDialog, setShowUsernameDialog] = useState(false)
 
-  // Stable userId ref for presence tracking - persisted across sessions
+  // Stable userId ref for presence tracking
+  // Use sessionStorage for unique session IDs (allows testing owner/joinee in same browser)
+  // Falls back to localStorage for persistent identity across page refreshes within same tab
   const userIdRef = useRef<string | null>(null)
   if (!userIdRef.current) {
-    // Try to get from localStorage first, otherwise generate new one
-    const storedUserId = localStorage.getItem('userId')
-    if (storedUserId) {
-      userIdRef.current = storedUserId
+    // First try sessionStorage (unique per tab)
+    let sessionUserId = sessionStorage.getItem('sessionUserId')
+    if (sessionUserId) {
+      userIdRef.current = sessionUserId
+      console.log('[EditorPage] Using existing session userId:', sessionUserId)
     } else {
-      const newUserId = Math.random().toString(36).substr(2, 9)
-      localStorage.setItem('userId', newUserId)
-      userIdRef.current = newUserId
+      // Check if this is a returning owner (localStorage has userId)
+      const persistentUserId = localStorage.getItem('persistentUserId')
+      if (persistentUserId && isNew) {
+        // Reuse persistent ID for owner creating new snippets
+        userIdRef.current = persistentUserId
+        sessionStorage.setItem('sessionUserId', persistentUserId)
+        console.log('[EditorPage] Reusing persistent userId for owner:', persistentUserId)
+      } else {
+        // Generate new session-specific ID
+        const newUserId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36)
+        userIdRef.current = newUserId
+        sessionStorage.setItem('sessionUserId', newUserId)
+        // Save to localStorage for owner recognition
+        if (isNew) {
+          localStorage.setItem('persistentUserId', newUserId)
+        }
+        console.log('[EditorPage] Generated new userId:', newUserId, 'isNew:', isNew)
+      }
     }
   }
   const userId = userIdRef.current
@@ -72,14 +90,15 @@ const EditorPage: React.FC = () => {
 
   // Debug logging for owner detection
   useEffect(() => {
-    console.log('[EditorPage] Owner Detection:', {
-      userId,
-      snippetOwnerId,
-      isNew,
-      isOwner,
-      resolvedSnippetId,
-      match: snippetOwnerId === userId
-    })
+    console.log('═══════════════════════════════════════════');
+    console.log('[EditorPage] 🔍 Owner Detection Status:');
+    console.log('  Current User ID:', userId);
+    console.log('  Snippet Owner ID:', snippetOwnerId);
+    console.log('  Is New Snippet:', isNew);
+    console.log('  Resolved Snippet ID:', resolvedSnippetId);
+    console.log('  IDs Match:', snippetOwnerId === userId);
+    console.log('  → IS OWNER:', isOwner ? '✓ YES' : '✗ NO');
+    console.log('═══════════════════════════════════════════');
   }, [userId, snippetOwnerId, isNew, isOwner, resolvedSnippetId])
 
   // Set owner ID for new snippets
