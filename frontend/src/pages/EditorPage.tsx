@@ -220,19 +220,7 @@ const EditorPage: React.FC = () => {
     // Update local state immediately for responsive UI
     setFormData(prev => ({ ...prev, code }))
     
-    // Send typing indicator
-    sendTypingIndicator(true)
     console.log('[Editor] Code change detected, code length:', code.length)
-    console.log('[Editor] Sending typing indicator: true, displayUsername:', displayUsername)
-    
-    // Clear typing indicator after 1 second of inactivity
-    if (typingIndicatorTimeoutRef.current) {
-      clearTimeout(typingIndicatorTimeoutRef.current)
-    }
-    typingIndicatorTimeoutRef.current = setTimeout(() => {
-      sendTypingIndicator(false)
-      console.log('[Editor] Sending typing indicator: false')
-    }, 1000)
     
     // Debounce the code change broadcast and auto-save
     if (codeChangeTimeoutRef.current) {
@@ -262,6 +250,24 @@ const EditorPage: React.FC = () => {
         console.log('[Auto-save] Saving to backend:', { snippetId: resolvedSnippetId })
       }
     }, 1000) // 1 second debounce for auto-save
+  }
+  
+  // Handle keyboard events to send typing indicator on complete line
+  const handleEditorKeyDown = (e: any) => {
+    // Send typing indicator when user presses Enter (complete line)
+    if (e.key === 'Enter') {
+      console.log('[Editor] Complete line entered, sending typing indicator')
+      sendTypingIndicator(true)
+      
+      // Stop typing after 1 second
+      if (typingIndicatorTimeoutRef.current) {
+        clearTimeout(typingIndicatorTimeoutRef.current)
+      }
+      typingIndicatorTimeoutRef.current = setTimeout(() => {
+        sendTypingIndicator(false)
+        console.log('[Editor] Typing indicator stopped')
+      }, 1000)
+    }
   }
 
   // Cleanup on unmount
@@ -735,7 +741,7 @@ const EditorPage: React.FC = () => {
           {/* Editor / Preview Content */}
           <div className="flex-1 overflow-hidden">
             {!showPreview ? (
-              <div className="w-full h-full overflow-auto bg-gray-900">
+              <div className="w-full h-full overflow-auto bg-gray-900" onKeyDown={handleEditorKeyDown}>
                 <Editor
                   value={formData.code}
                   onValueChange={handleCodeChange}

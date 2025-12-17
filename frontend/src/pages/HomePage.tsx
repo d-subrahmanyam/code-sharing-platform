@@ -101,13 +101,13 @@ const HomePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Username Dialog */}
       {showUsernameDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4 border border-blue-200">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Join as Collaborator</h2>
-            <p className="text-gray-600 mb-6">Enter your name to start collaborating on this snippet. Your name will be shown to others viewing this code.</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 max-w-md w-full mx-4 border border-blue-200 dark:border-blue-700">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Join as Collaborator</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">Enter your name to start collaborating on this snippet. Your name will be shown to others viewing this code.</p>
             <input
               type="text"
               placeholder="Enter your name (e.g., Alice, Bob)"
@@ -115,19 +115,19 @@ const HomePage: React.FC = () => {
               onChange={(e) => setUsernameInput(e.target.value)}
               onKeyPress={handleUsernameKeyPress}
               autoFocus
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none mb-6 text-gray-900"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none mb-6 text-gray-900 dark:text-white dark:bg-gray-700 dark:placeholder-gray-400"
             />
             <div className="flex gap-3">
               <button
                 onClick={handleUsernameSubmit}
                 disabled={!usernameInput.trim()}
-                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
+                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
               >
                 Continue
               </button>
               <button
                 onClick={handleUsernameSkip}
-                className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-colors"
+                className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg font-semibold transition-colors"
               >
                 Use Random Name
               </button>
@@ -137,14 +137,14 @@ const HomePage: React.FC = () => {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <FiCode className="text-blue-600" size={36} />
               Code Sharing
             </h1>
-            <p className="text-lg text-gray-600 mt-2">
+            <p className="text-lg text-gray-600 dark:text-gray-300 mt-2">
               Share and collaborate on code snippets in real-time
             </p>
           </div>
