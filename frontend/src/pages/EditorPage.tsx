@@ -655,7 +655,7 @@ const EditorPage: React.FC = () => {
           </button>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <FiCode size={24} className="text-blue-400" />
-            {isNew ? 'New Snippet' : formData.title || 'Untitled Snippet'}
+            {formData.title || 'Untitled Snippet'}
           </h1>
         </div>
         <div className="flex items-center gap-6">
@@ -743,7 +743,8 @@ const EditorPage: React.FC = () => {
       )}
 
       <div className="flex-1 overflow-hidden flex">
-        {/* Sidebar - Metadata */}
+        {/* Sidebar - Metadata (Only shown to owner) */}
+        {isOwner && (
         <div className={`bg-gray-800 border-r border-gray-700 overflow-y-auto text-white transition-all duration-300 ${
           sidebarCollapsed ? 'w-16' : 'w-80'
         }`}>
@@ -909,6 +910,7 @@ const EditorPage: React.FC = () => {
             </div>
           )}
         </div>
+        )}
 
         {/* Main Editor Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
