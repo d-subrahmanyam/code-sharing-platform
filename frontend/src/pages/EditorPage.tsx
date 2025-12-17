@@ -59,6 +59,14 @@ const EditorPage: React.FC = () => {
   // Track if user is the owner
   const isOwner = snippetOwnerId === userId || isNew
 
+  // Set owner ID for new snippets
+  useEffect(() => {
+    if (isNew && userId && !snippetOwnerId) {
+      setSnippetOwnerId(userId)
+      console.log('[EditorPage] Set owner ID for new snippet:', userId)
+    }
+  }, [isNew, userId, snippetOwnerId])
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
