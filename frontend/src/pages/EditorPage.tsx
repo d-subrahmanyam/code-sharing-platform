@@ -501,23 +501,24 @@ const EditorPage: React.FC = () => {
                 {displayUsername}
               </div>
             )}
-          {shareableUrl && (
+            {shareableUrl && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <FiCode size={18} />
+                Share
+              </button>
+            )}
             <button
-              onClick={() => setShowShareModal(true)}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
             >
-              <FiCode size={18} />
-              Share
+              <FiSave size={18} />
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-          >
-            <FiSave size={18} />
-            {isSaving ? 'Saving...' : 'Save'}
-          </button>
+          </div>
         </div>
       </header>
 
