@@ -41,6 +41,7 @@ const FETCH_SNIPPETS_QUERY = `
 
 const CREATE_SNIPPET_MUTATION = `
   mutation CreateSnippet(
+    $authorId: String!
     $title: String!
     $description: String!
     $code: String!
@@ -49,6 +50,7 @@ const CREATE_SNIPPET_MUTATION = `
     $isPublic: Boolean
   ) {
     createSnippet(
+      authorId: $authorId
       title: $title
       description: $description
       code: $code

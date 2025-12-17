@@ -52,14 +52,15 @@ public class SnippetController {
     }
 
     @MutationMapping
-    public SnippetDTO createSnippet(@Argument String title,
+    public SnippetDTO createSnippet(@Argument String authorId,
+                                    @Argument String title,
                                     @Argument String description,
                                     @Argument String code,
                                     @Argument String language,
                                     @Argument List<String> tags,
                                     @Argument Boolean isPublic) {
-        // TODO: Get actual userId from security context
-        String userId = "user-1"; // Temporary placeholder
+        // Use authorId from frontend (session-specific userId)
+        String userId = authorId != null ? authorId : "anonymous";
         List<String> tagList = tags != null ? tags : new java.util.ArrayList<>();
         boolean isPublicFlag = isPublic != null ? isPublic : true;
         return snippetService.createSnippet(userId, title, description, code, language, tagList, isPublicFlag);

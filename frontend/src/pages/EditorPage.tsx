@@ -526,8 +526,12 @@ const EditorPage: React.FC = () => {
         // For new snippets, dispatch create and wait for response
         const action = {
           type: SNIPPET_CREATE_REQUEST,
-          payload: formData,
+          payload: {
+            ...formData,
+            authorId: userId, // Include owner's userId
+          },
         }
+        console.log('[EditorPage] Creating snippet with authorId:', userId)
         dispatch(action as any)
 
         // In a real app with proper saga handling, we'd get the ID from the result
