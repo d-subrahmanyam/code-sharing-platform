@@ -178,7 +178,7 @@ const EditorPage: React.FC = () => {
   const collaborationId = tinyCode || resolvedSnippetId
   const notifiedUserIdsRef = useRef<Set<string>>(new Set())
   
-  const { sendCodeChange, sendTypingIndicator } = useWebSocketCollaboration(
+  const { sendCodeChange, sendTypingIndicator, sendMetadataUpdate } = useWebSocketCollaboration(
     collaborationId,
     userId,
     displayUsername,
@@ -219,6 +219,22 @@ const EditorPage: React.FC = () => {
       console.log('[WebSocket] Typing users:', typingUsers)
       // Filter out current user
       setTypingUsers(typingUsers.filter((u: any) => u.userId !== userId))
+    },
+    (metadata) => {
+      console.log('[WebSocket] Metadata update received:', metadata)
+      // Only update if it's from another user (owner)
+      if (metadata.userId !== userId) {
+        setFormData(prev => ({
+          ...prev,
+          title: metadata.title !== undefined ? metadata.title : prev.title,
+          description: metadata.description !== undefined ? metadata.description : prev.description,
+          language: metadata.language !== undefined ? metadata.language : prev.language,
+          tags: metadata.tags !== undefined ? metadata.tags : prev.tags,
+        }))
+        // Update line number based on new language if needed
+        const currentLine = formData.code.split('\n').length
+        setCurrentLineNumber(currentLine)
+      }
     }
   )
 
@@ -340,23 +356,42 @@ const EditorPage: React.FC = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
+
+    // Send metadata update to other users if owner is making changes
+    if (isOwner && ['title', 'description', 'language'].includes(name)) {
+      sendMetadataUpdate({
+        [name]: type === 'checkbox' ? checked : value,
+      })
+    }
   }
 
   const handleAddTag = () => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
+      const updatedTags = [...formData.tags, newTag.trim()]
       setFormData(prev => ({
         ...prev,
-        tags: [...prev.tags, newTag.trim()],
+        tags: updatedTags,
       }))
       setNewTag('')
+      
+      // Send metadata update to other users if owner is making changes
+      if (isOwner) {
+        sendMetadataUpdate({ tags: updatedTags })
+      }
     }
   }
 
   const handleRemoveTag = (tag: string) => {
+    const updatedTags = formData.tags.filter(t => t !== tag)
     setFormData(prev => ({
       ...prev,
-      tags: prev.tags.filter(t => t !== tag),
+      tags: updatedTags,
     }))
+    
+    // Send metadata update to other users if owner is making changes
+    if (isOwner) {
+      sendMetadataUpdate({ tags: updatedTags })
+    }
   }
 
   const handleUsernameSubmit = () => {
@@ -520,7 +555,7 @@ const EditorPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-6">
           {/* Active Users Display */}
-          <ActiveUsers users={activeUsers} />
+          <ActiveUsers users={activeUsers} ownerId={snippetOwnerId} />
 
           <div className="flex items-center gap-3">
             {displayUsername && (
@@ -533,7 +568,7 @@ const EditorPage: React.FC = () => {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setShowShareModal(true)}
-                  className="px-6 py-2 bg-green-600 text-white rounded-l-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-green-600 text-white rounded-l-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2 h-10"
                 >
                   <FiShare2 size={18} />
                   Share
@@ -543,7 +578,7 @@ const EditorPage: React.FC = () => {
                     await copyToClipboard(shareableUrl)
                     showToast('Link copied to clipboard!')
                   }}
-                  className="px-3 py-2 bg-green-600 text-white rounded-r-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center border-l border-green-500"
+                  className="px-4 py-2 bg-green-600 text-white rounded-r-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center border-l border-green-500 h-10"
                   title="Copy link"
                 >
                   <FiCopy size={18} />
@@ -688,6 +723,7 @@ const EditorPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                 <FiTag size={16} className="text-blue-400" />
                 Tags
+                {!isOwner && <span className="text-xs text-yellow-400">(Read-only)</span>}
               </label>
               <div className="flex gap-2 mb-2">
                 <input
@@ -695,12 +731,18 @@ const EditorPage: React.FC = () => {
                   value={newTag}
                   onChange={e => setNewTag(e.target.value)}
                   onKeyPress={e => e.key === 'Enter' && handleAddTag()}
+                  disabled={!isOwner}
                   placeholder="Add a tag..."
-                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className={`flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm ${
+                    !isOwner ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 />
                 <button
                   onClick={handleAddTag}
-                  className="px-3 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-sm"
+                  disabled={!isOwner}
+                  className={`px-3 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-sm ${
+                    !isOwner ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 >
                   Add
                 </button>
@@ -709,13 +751,16 @@ const EditorPage: React.FC = () => {
                 {formData.tags.map(tag => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-2 bg-blue-600 text-white text-xs px-2 py-1 rounded"
+                    className={`inline-flex items-center gap-2 bg-blue-600 text-white text-xs px-2 py-1 rounded ${
+                      !isOwner ? 'opacity-60' : ''
+                    }`}
                   >
                     <FiTag size={12} />
                     {tag}
                     <button
                       onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-gray-200"
+                      disabled={!isOwner}
+                      className={`hover:text-gray-200 ${!isOwner ? 'cursor-not-allowed' : ''}`}
                     >
                       <FiX size={14} />
                     </button>

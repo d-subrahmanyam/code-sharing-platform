@@ -1,4 +1,5 @@
 import React from 'react'
+import { FiAward } from 'react-icons/fi'
 
 export interface ActiveUser {
   id: string
@@ -39,7 +40,7 @@ export function truncateUsername(username: string): string {
  * Active Users Display Component
  * Shows colored avatars of all users currently editing the snippet
  */
-export const ActiveUsers: React.FC<{ users: ActiveUser[] }> = ({ users }) => {
+export const ActiveUsers: React.FC<{ users: ActiveUser[]; ownerId?: string }> = ({ users, ownerId }) => {
   if (!users || users.length === 0) {
     return (
       <div className="text-gray-400 text-sm">
@@ -53,14 +54,23 @@ export const ActiveUsers: React.FC<{ users: ActiveUser[] }> = ({ users }) => {
       <span className="text-gray-300 text-xs font-semibold">Active Users:</span>
       <div className="flex items-center gap-1 flex-wrap">
         {users.map((user) => (
-          <div
-            key={user.id}
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${getUserColor(
-              user.id
-            )} cursor-default transition-transform hover:scale-110`}
-            title={user.username}
-          >
-            {truncateUsername(user.username).toUpperCase()[0]}
+          <div key={user.id} className="relative">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${getUserColor(
+                user.id
+              )} cursor-default transition-transform hover:scale-110`}
+              title={user.username}
+            >
+              {truncateUsername(user.username).toUpperCase()[0]}
+            </div>
+            {ownerId === user.id && (
+              <div
+                className="absolute -top-1 -right-1 text-yellow-400"
+                title="Owner"
+              >
+                <FiAward size={12} />
+              </div>
+            )}
           </div>
         ))}
       </div>

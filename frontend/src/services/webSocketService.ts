@@ -211,6 +211,39 @@ export class WebSocketService {
   }
 
   /**
+   * Send metadata update (title, description, language, tags)
+   */
+  sendMetadataUpdate(
+    snippetId: string,
+    userId: string,
+    metadata: {
+      title?: string
+      description?: string
+      language?: string
+      tags?: string[]
+    }
+  ): Promise<void> {
+    return this.ensureConnected().then(() => {
+      const destination = `/app/snippet/${snippetId}/metadata`
+      const payload = {
+        userId,
+        ...metadata,
+        timestamp: Date.now(),
+      }
+      console.log('[WebSocketService.sendMetadataUpdate] Sending to:', destination, payload)
+      this.stompClient!.send(
+        destination,
+        {},
+        JSON.stringify(payload)
+      )
+      console.log('[WebSocketService.sendMetadataUpdate] ✓ Sent')
+    }).catch((error) => {
+      console.error('[WebSocketService.sendMetadataUpdate] ✗ Error:', error)
+      throw error
+    })
+  }
+
+  /**
    * Subscribe to presence updates
    */
   subscribeToPresence(
@@ -273,6 +306,29 @@ export class WebSocketService {
           callback(data)
         } catch (error) {
           console.error('Error parsing typing status message:', error)
+        }
+      })
+      this.subscriptions.set(topic, subscription)
+    })
+  }
+
+  /**
+   * Subscribe to metadata updates
+   */
+  subscribeToMetadataUpdates(
+    snippetId: string,
+    callback: WebSocketCallback<any>
+  ): void {
+    const topic = `/topic/snippet/${snippetId}/metadata`
+    this.unsubscribeFromTopic(topic)
+
+    this.ensureConnected().then(() => {
+      const subscription = this.stompClient!.subscribe(topic, (message) => {
+        try {
+          const data = JSON.parse(message.body)
+          callback(data)
+        } catch (error) {
+          console.error('Error parsing metadata update message:', error)
         }
       })
       this.subscriptions.set(topic, subscription)

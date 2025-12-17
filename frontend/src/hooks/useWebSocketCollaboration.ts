@@ -18,7 +18,8 @@ export function useWebSocketCollaboration(
   username: string | null,
   onPresenceUpdate: (users: UserPresence[]) => void,
   onCodeChange: (change: CodeChangeMessage) => void,
-  onTypingUpdate: (typingUsers: Array<{ userId: string; username: string }>) => void
+  onTypingUpdate: (typingUsers: Array<{ userId: string; username: string }>) => void,
+  onMetadataUpdate?: (metadata: any) => void
 ) {
   const hasJoinedRef = useRef<boolean>(false)
   const isConnectedRef = useRef<boolean>(false)
@@ -125,6 +126,14 @@ export function useWebSocketCollaboration(
           console.log('[useWebSocketCollaboration] Typing users:', status.typingUsers)
           onTypingUpdate(status.typingUsers)
         })
+
+        // Subscribe to metadata updates
+        if (onMetadataUpdate) {
+          webSocketService.subscribeToMetadataUpdates(snippetId, (metadata: any) => {
+            console.log('[useWebSocketCollaboration] Metadata update:', metadata)
+            onMetadataUpdate(metadata)
+          })
+        }
       } catch (error) {
         console.error('[useWebSocketCollaboration] Error joining snippet:', error)
         hasJoinedRef.current = false
@@ -143,7 +152,7 @@ export function useWebSocketCollaboration(
         hasJoinedRef.current = false
       }
     }
-  }, [snippetId, userId, username, onPresenceUpdate, onCodeChange, onTypingUpdate])
+  }, [snippetId, userId, username, onPresenceUpdate, onCodeChange, onTypingUpdate, onMetadataUpdate])
 
   // Send code change
   const sendCodeChange = useCallback(
@@ -193,6 +202,29 @@ export function useWebSocketCollaboration(
     [snippetId, userId]
   )
 
+  // Send metadata update
+  const sendMetadataUpdate = useCallback(
+    async (metadata: {
+      title?: string
+      description?: string
+      language?: string
+      tags?: string[]
+    }) => {
+      if (!snippetId || !isConnectedRef.current) {
+        console.warn('[sendMetadataUpdate] Not connected or no snippet ID')
+        return
+      }
+
+      try {
+        await webSocketService.sendMetadataUpdate(snippetId, userId, metadata)
+        console.log('[sendMetadataUpdate] ✓ Successfully sent')
+      } catch (error) {
+        console.error('Error sending metadata update:', error)
+      }
+    },
+    [snippetId, userId]
+  )
+
   // Get connection status
   const isConnected = useCallback(() => {
     return webSocketService.getConnectionStatus()
@@ -201,6 +233,7 @@ export function useWebSocketCollaboration(
   return {
     sendCodeChange,
     sendTypingIndicator,
+    sendMetadataUpdate,
     isConnected,
   }
 }
