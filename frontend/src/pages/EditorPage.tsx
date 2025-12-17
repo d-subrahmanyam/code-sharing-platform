@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
-import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight, FiEyeOff } from 'react-icons/fi'
+import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight, FiEyeOff, FiShare2, FiCopy } from 'react-icons/fi'
 import Editor from 'react-simple-code-editor'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
-import { UserJoinBubble } from '../components/UserJoinBubble'
 import { ActiveUsers, type ActiveUser } from '../components/ActiveUsers'
+import { UserJoinBubble } from '../components/UserJoinBubble'
 import { useWebSocketCollaboration } from '../hooks/useWebSocketCollaboration'
 import './EditorPage.css'
 
@@ -38,17 +38,11 @@ const EditorPage: React.FC = () => {
   const [shareableUrl, setShareableUrl] = useState<string | null>(null)
   const [showShareModal, setShowShareModal] = useState(false)
   const [activeUsers, setActiveUsers] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
-  const [userNotifications, setUserNotifications] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
   const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; username: string }>>([])
-
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    code: '',
-    language: 'javascript',
-    tags: [] as string[],
-    isPublic: true,
-  })
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [currentLineNumber, setCurrentLineNumber] = useState(1)
+  const [snippetOwnerId, setSnippetOwnerId] = useState<string | null>(null)
+  const [userNotifications, setUserNotifications] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
 
   const [newTag, setNewTag] = useState('')
   const [currentUser] = useState(null) // In real app, get from Redux auth state
@@ -61,6 +55,18 @@ const EditorPage: React.FC = () => {
     userIdRef.current = Math.random().toString(36).substr(2, 9)
   }
   const userId = userIdRef.current
+
+  // Track if user is the owner
+  const isOwner = snippetOwnerId === userId || isNew
+
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    code: '',
+    language: 'javascript',
+    tags: [] as string[],
+    isPublic: true,
+  })
   
   // Username - either from localStorage (set on HomePage) or entered by user
   const [displayUsername, setDisplayUsername] = useState<string | null>(() => {
@@ -161,6 +167,10 @@ const EditorPage: React.FC = () => {
         tags: snippet.tags || [],
         isPublic: snippet.isPublic !== false,
       })
+      // Set the owner ID from the snippet
+      if (snippet.authorId) {
+        setSnippetOwnerId(snippet.authorId)
+      }
     }
   }, [snippet, isNew])
 
@@ -216,11 +226,21 @@ const EditorPage: React.FC = () => {
   const codeChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
+  // Show toast notification
+  const showToast = (message: string) => {
+    setToastMessage(message)
+    setTimeout(() => setToastMessage(null), 3000)
+  }
+  
   const handleCodeChange = (code: string) => {
     // Update local state immediately for responsive UI
     setFormData(prev => ({ ...prev, code }))
     
-    console.log('[Editor] Code change detected, code length:', code.length)
+    // Calculate current line number (lines are 1-indexed)
+    const currentLine = code.split('\n').length
+    setCurrentLineNumber(currentLine)
+    
+    console.log('[Editor] Code change detected, code length:', code.length, 'line:', currentLine)
     
     // Debounce the code change broadcast and auto-save
     if (codeChangeTimeoutRef.current) {
@@ -510,13 +530,25 @@ const EditorPage: React.FC = () => {
               </div>
             )}
             {shareableUrl && (
-              <button
-                onClick={() => setShowShareModal(true)}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
-              >
-                <FiCode size={18} />
-                Share
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="px-6 py-2 bg-green-600 text-white rounded-l-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+                >
+                  <FiShare2 size={18} />
+                  Share
+                </button>
+                <button
+                  onClick={async () => {
+                    await copyToClipboard(shareableUrl)
+                    showToast('Link copied to clipboard!')
+                  }}
+                  className="px-3 py-2 bg-green-600 text-white rounded-r-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center border-l border-green-500"
+                  title="Copy link"
+                >
+                  <FiCopy size={18} />
+                </button>
+              </div>
             )}
             <button
               onClick={handleSave}
@@ -546,7 +578,7 @@ const EditorPage: React.FC = () => {
                 onClick={async () => {
                   await copyToClipboard(shareableUrl)
                   logger.success('Share URL copied to clipboard')
-                  alert('Share URL copied to clipboard!')
+                  showToast('Link copied to clipboard!')
                   setShowShareModal(false)
                 }}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
@@ -591,31 +623,39 @@ const EditorPage: React.FC = () => {
               <div className="space-y-6">
                 {/* Title */}
                 <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                 Title
+                {!isOwner && <span className="text-xs text-yellow-400">(Read-only)</span>}
               </label>
               <input
                 type="text"
                 name="title"
                 value={formData.title}
                 onChange={handleFormChange}
+                disabled={!isOwner}
                 placeholder="Snippet title"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none ${
+                  !isOwner ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
               />
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                 Description
+                {!isOwner && <span className="text-xs text-yellow-400">(Read-only)</span>}
               </label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleFormChange}
+                disabled={!isOwner}
                 placeholder="What does this code do?"
                 rows={4}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none ${
+                  !isOwner ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
               />
             </div>
 
@@ -624,12 +664,16 @@ const EditorPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                 <FiCode size={16} className="text-blue-400" />
                 Language
+                {!isOwner && <span className="text-xs text-yellow-400">(Read-only)</span>}
               </label>
               <select
                 name="language"
                 value={formData.language}
                 onChange={handleFormChange}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                disabled={!isOwner}
+                className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 outline-none ${
+                  !isOwner ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
               >
                 {languages.map(lang => (
                   <option key={lang} value={lang}>
@@ -741,13 +785,20 @@ const EditorPage: React.FC = () => {
           {/* Editor / Preview Content */}
           <div className="flex-1 overflow-hidden">
             {!showPreview ? (
-              <div className="w-full h-full overflow-auto bg-gray-900" onKeyDown={handleEditorKeyDown}>
-                <Editor
-                  value={formData.code}
-                  onValueChange={handleCodeChange}
-                  highlight={(code) => {
-                    const languageMap: { [key: string]: string } = {
-                      'javascript': 'javascript',
+              <div className="w-full h-full overflow-auto bg-gray-900 flex" onKeyDown={handleEditorKeyDown}>
+                {/* Line Numbers */}
+                <div className="bg-gray-950 border-r border-gray-700 px-3 py-4 text-right text-gray-600 font-mono text-sm leading-6 overflow-hidden select-none">
+                  {formData.code.split('\n').map((_, i) => (
+                    <div key={i}>{i + 1}</div>
+                  ))}
+                </div>
+                <div className="flex-1 overflow-auto">
+                  <Editor
+                    value={formData.code}
+                    onValueChange={handleCodeChange}
+                    highlight={(code) => {
+                      const languageMap: { [key: string]: string } = {
+                        'javascript': 'javascript',
                       'python': 'python',
                       'java': 'java',
                       'cpp': 'cpp',
@@ -775,6 +826,7 @@ const EditorPage: React.FC = () => {
                   }}
                   placeholder="Paste your code here..."
                 />
+                </div>
               </div>
             ) : (
               <div className="p-6 overflow-auto bg-gray-900">
@@ -787,6 +839,22 @@ const EditorPage: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Status Bar */}
+          <div className="bg-gray-800 border-t border-gray-700 px-6 py-2 flex items-center justify-between text-xs text-gray-400">
+            <div className="flex items-center gap-6">
+              <span>Line {currentLineNumber}</span>
+              <span>Language: {formData.language}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {typingUsers.length > 0 && (
+                <span className="text-blue-400">
+                  <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-pulse mr-1"></span>
+                  Editing: {typingUsers.map(u => u.username).join(', ')}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -808,17 +876,10 @@ const EditorPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Active Users Indicator - Display in header */}
-      {activeUsers.length > 1 && (
-        <div className="fixed top-20 right-6 bg-blue-900 border border-blue-700 rounded-lg px-4 py-3 text-blue-100 text-sm pointer-events-auto z-40">
-          <div className="font-semibold flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-            {activeUsers.length} {activeUsers.length === 1 ? 'user' : 'users'} viewing
-          </div>
-          <div className="mt-1 text-xs text-blue-200">
-            {activeUsers.slice(0, 3).map(u => u.username).join(', ')}
-            {activeUsers.length > 3 && ` +${activeUsers.length - 3}`}
-          </div>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-6 bg-green-600 text-white rounded-lg px-4 py-3 shadow-lg z-50 animate-pulse">
+          {toastMessage}
         </div>
       )}
 
