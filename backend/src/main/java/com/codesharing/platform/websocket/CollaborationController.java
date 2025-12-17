@@ -126,6 +126,26 @@ public class CollaborationController {
   }
 
   /**
+   * Handle metadata updates (title, description, language, tags)
+   * Message: /app/snippet/{snippetId}/metadata
+   */
+  @MessageMapping("/snippet/{snippetId}/metadata")
+  public void handleMetadataUpdate(
+    @DestinationVariable String snippetId,
+    @Payload MetadataUpdateMessage metadata
+  ) {
+    System.out.println("[Metadata] Received metadata update from user " + metadata.userId + " for snippet " + snippetId);
+    
+    // Broadcast metadata update to all subscribers
+    messagingTemplate.convertAndSend(
+      "/topic/snippet/" + snippetId + "/metadata",
+      metadata
+    );
+    
+    System.out.println("[Metadata] Broadcasted to /topic/snippet/" + snippetId + "/metadata");
+  }
+
+  /**
    * Message types for WebSocket communication
    */
   public static class PresenceMessage {
@@ -177,5 +197,17 @@ public class CollaborationController {
       this.users = users;
       this.count = count;
     }
+  }
+
+  public static class MetadataUpdateMessage {
+    public String userId;
+    public String title;
+    public String description;
+    public String language;
+    public List<String> tags;
+    public long timestamp;
+
+    // Default constructor for deserialization
+    public MetadataUpdateMessage() {}
   }
 }
