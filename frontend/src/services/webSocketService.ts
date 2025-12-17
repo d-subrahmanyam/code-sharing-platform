@@ -166,17 +166,24 @@ export class WebSocketService {
     language: string
   ): Promise<void> {
     return this.ensureConnected().then(() => {
+      const destination = `/app/snippet/${snippetId}/code`
+      const payload = {
+        userId,
+        username,
+        code,
+        language,
+        timestamp: Date.now(),
+      }
+      console.log('[WebSocketService.sendCodeChange] Sending to:', destination, payload)
       this.stompClient!.send(
-        `/app/snippet/${snippetId}/code`,
+        destination,
         {},
-        JSON.stringify({
-          userId,
-          username,
-          code,
-          language,
-          timestamp: Date.now(),
-        })
+        JSON.stringify(payload)
       )
+      console.log('[WebSocketService.sendCodeChange] ✓ Sent')
+    }).catch((error) => {
+      console.error('[WebSocketService.sendCodeChange] ✗ Error:', error)
+      throw error
     })
   }
 
@@ -185,14 +192,21 @@ export class WebSocketService {
    */
   sendTypingIndicator(snippetId: string, userId: string, isTyping: boolean): Promise<void> {
     return this.ensureConnected().then(() => {
+      const destination = `/app/snippet/${snippetId}/typing`
+      const payload = {
+        userId,
+        isTyping,
+      }
+      console.log('[WebSocketService.sendTypingIndicator] Sending to:', destination, payload)
       this.stompClient!.send(
-        `/app/snippet/${snippetId}/typing`,
+        destination,
         {},
-        JSON.stringify({
-          userId,
-          isTyping,
-        })
+        JSON.stringify(payload)
       )
+      console.log('[WebSocketService.sendTypingIndicator] ✓ Sent')
+    }).catch((error) => {
+      console.error('[WebSocketService.sendTypingIndicator] ✗ Error:', error)
+      throw error
     })
   }
 

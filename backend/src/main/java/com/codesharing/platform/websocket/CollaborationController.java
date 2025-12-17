@@ -75,11 +75,16 @@ public class CollaborationController {
     @DestinationVariable String snippetId,
     @Payload CodeChangeMessage codeChange
   ) {
+    System.out.println("[CodeChange] Received code change from " + codeChange.username + " for snippet " + snippetId);
+    System.out.println("[CodeChange] Code length: " + (codeChange.code != null ? codeChange.code.length() : 0) + " Language: " + codeChange.language);
+    
     // Broadcast code change to all subscribers (except sender if needed)
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/code",
       codeChange
     );
+    
+    System.out.println("[CodeChange] Broadcasted to /topic/snippet/" + snippetId + "/code");
   }
 
   /**
@@ -91,6 +96,8 @@ public class CollaborationController {
     @DestinationVariable String snippetId,
     @Payload TypingIndicatorMessage typing
   ) {
+    System.out.println("[Typing] User " + typing.userId + " is " + (typing.isTyping ? "typing" : "not typing") + " in snippet " + snippetId);
+    
     collaborationService.setUserTyping(snippetId, typing.userId, typing.isTyping);
 
     // Broadcast typing status with usernames to all subscribers
@@ -99,6 +106,8 @@ public class CollaborationController {
       "/topic/snippet/" + snippetId + "/typing",
       new TypingStatusMessage(typingUsers)
     );
+    
+    System.out.println("[Typing] Broadcasting " + typingUsers.size() + " typing users to /topic/snippet/" + snippetId + "/typing");
   }
 
   /**

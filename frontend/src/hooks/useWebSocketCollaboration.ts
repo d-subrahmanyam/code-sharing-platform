@@ -23,23 +23,33 @@ export function useWebSocketCollaboration(
   const hasJoinedRef = useRef<boolean>(false)
   const isConnectedRef = useRef<boolean>(false)
   const currentSnippetIdRef = useRef<string | null>(null)
+  const connectionAttemptedRef = useRef<boolean>(false)
 
   // Initialize WebSocket connection only once per component lifecycle
   useEffect(() => {
     async function initializeConnection() {
+      // Ensure we only attempt once
+      if (connectionAttemptedRef.current) {
+        console.log('[useWebSocketCollaboration] Connection already attempted, skipping')
+        return
+      }
+      
+      connectionAttemptedRef.current = true
+      
       try {
-        console.log('Initializing WebSocket connection...')
+        console.log('[useWebSocketCollaboration] Initializing WebSocket connection...', { userId })
         await webSocketService.connect(userId)
         isConnectedRef.current = true
-        console.log('WebSocket connected successfully')
+        console.log('[useWebSocketCollaboration] ✓ WebSocket connected successfully', { isConnected: isConnectedRef.current })
       } catch (error) {
-        console.error('Failed to connect to WebSocket:', error)
+        console.error('[useWebSocketCollaboration] ✗ Failed to connect to WebSocket:', error)
         isConnectedRef.current = false
       }
     }
 
-    // Only initialize if not already connected
-    if (!isConnectedRef.current && userId) {
+    // Initialize connection on first render (userId is stable)
+    if (userId && !connectionAttemptedRef.current) {
+      console.log('[useWebSocketCollaboration] Starting connection initialization', { userId })
       initializeConnection()
     }
 
@@ -52,20 +62,36 @@ export function useWebSocketCollaboration(
   // Join snippet session and set up subscriptions
   // This effect runs when snippetId or username changes, but prevents duplicate joins for same snippetId
   useEffect(() => {
-    if (!snippetId || !userId || !username || !isConnectedRef.current) {
-      console.log('Skipping join - missing requirements', { snippetId, userId: !!userId, username, connected: isConnectedRef.current })
+    if (!snippetId || !userId || !username) {
+      console.log('[useWebSocketCollaboration] Skipping join - missing requirements', { snippetId, userId: !!userId, username })
       return
+    }
+
+    // Wait for connection to be established before joining
+    if (!isConnectedRef.current && !connectionAttemptedRef.current) {
+      console.log('[useWebSocketCollaboration] Connection not yet attempted, returning')
+      return
+    }
+
+    // If connection was attempted but not yet established, wait a bit
+    if (!isConnectedRef.current && connectionAttemptedRef.current) {
+      console.log('[useWebSocketCollaboration] Waiting for connection to establish...')
+      const timeout = setTimeout(() => {
+        // Try again after 500ms
+        console.log('[useWebSocketCollaboration] Retrying join after connection wait')
+      }, 500)
+      return () => clearTimeout(timeout)
     }
 
     // Prevent re-joining the same snippet on component re-renders
     if (currentSnippetIdRef.current === snippetId && hasJoinedRef.current) {
-      console.log('Already joined this snippet, skipping duplicate join', { snippetId, userId })
+      console.log('[useWebSocketCollaboration] Already joined this snippet, skipping duplicate join', { snippetId, userId })
       return
     }
 
     // If we're switching to a different snippet, leave the previous one first
     if (currentSnippetIdRef.current && currentSnippetIdRef.current !== snippetId) {
-      console.log('Switching snippets, leaving previous', { from: currentSnippetIdRef.current, to: snippetId })
+      console.log('[useWebSocketCollaboration] Switching snippets, leaving previous', { from: currentSnippetIdRef.current, to: snippetId })
       webSocketService.leaveSnippet(currentSnippetIdRef.current, userId).catch((error) => {
         console.error('Error leaving previous snippet:', error)
       })
@@ -74,33 +100,33 @@ export function useWebSocketCollaboration(
 
     async function joinAndSubscribe() {
       try {
-        console.log(`Joining snippet ${snippetId} as ${username}`)
+        console.log(`[useWebSocketCollaboration] Joining snippet ${snippetId} as ${username}`)
         hasJoinedRef.current = true
         currentSnippetIdRef.current = snippetId
 
         // Join the session
         await webSocketService.joinSnippet(snippetId, userId, username)
-        console.log(`Successfully joined snippet ${snippetId}`)
+        console.log(`[useWebSocketCollaboration] ✓ Successfully joined snippet ${snippetId}`)
 
         // Subscribe to presence updates
         webSocketService.subscribeToPresence(snippetId, (message: PresenceMessage) => {
-          console.log('Presence update:', message)
+          console.log('[useWebSocketCollaboration] Presence update:', message)
           onPresenceUpdate(message.activeUsers)
         })
 
         // Subscribe to code changes
         webSocketService.subscribeToCodeChanges(snippetId, (change: CodeChangeMessage) => {
-          console.log('Code change from', change.username)
+          console.log('[useWebSocketCollaboration] Code change from', change.username)
           onCodeChange(change)
         })
 
         // Subscribe to typing indicators
         webSocketService.subscribeToTypingStatus(snippetId, (status: TypingStatusMessage) => {
-          console.log('Typing users:', status.typingUsers)
+          console.log('[useWebSocketCollaboration] Typing users:', status.typingUsers)
           onTypingUpdate(status.typingUsers)
         })
       } catch (error) {
-        console.error('Error joining snippet:', error)
+        console.error('[useWebSocketCollaboration] Error joining snippet:', error)
         hasJoinedRef.current = false
       }
     }
@@ -110,7 +136,7 @@ export function useWebSocketCollaboration(
     // Cleanup on unmount or snippet change
     return () => {
       if (hasJoinedRef.current && currentSnippetIdRef.current === snippetId) {
-        console.log(`Leaving snippet ${snippetId}`)
+        console.log(`[useWebSocketCollaboration] Leaving snippet ${snippetId}`)
         webSocketService.leaveSnippet(snippetId, userId).catch((error) => {
           console.error('Error leaving snippet:', error)
         })
@@ -122,15 +148,30 @@ export function useWebSocketCollaboration(
   // Send code change
   const sendCodeChange = useCallback(
     async (code: string, language: string) => {
-      if (!snippetId || !isConnectedRef.current) {
-        console.warn('Cannot send code change: not connected or no snippet ID')
+      console.log('[sendCodeChange] Called', { 
+        snippetId, 
+        connected: isConnectedRef.current, 
+        userId, 
+        username, 
+        codeLength: code.length 
+      })
+      
+      if (!snippetId) {
+        console.warn('[sendCodeChange] ✗ No snippet ID')
+        return
+      }
+      
+      if (!isConnectedRef.current) {
+        console.warn('[sendCodeChange] ✗ Not connected', { isConnected: isConnectedRef.current })
         return
       }
 
       try {
+        console.log('[sendCodeChange] Sending via WebSocket', { snippetId, userId, username })
         await webSocketService.sendCodeChange(snippetId, userId, username || `User ${userId.substring(0, 4)}`, code, language)
+        console.log('[sendCodeChange] ✓ Successfully sent')
       } catch (error) {
-        console.error('Error sending code change:', error)
+        console.error('[sendCodeChange] ✗ Error sending code change:', error)
       }
     },
     [snippetId, userId, username]

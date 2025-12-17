@@ -222,7 +222,8 @@ const EditorPage: React.FC = () => {
     
     // Send typing indicator
     sendTypingIndicator(true)
-    console.log('[WebSocket] Sending typing indicator: true')
+    console.log('[Editor] Code change detected, code length:', code.length)
+    console.log('[Editor] Sending typing indicator: true, displayUsername:', displayUsername)
     
     // Clear typing indicator after 1 second of inactivity
     if (typingIndicatorTimeoutRef.current) {
@@ -230,7 +231,7 @@ const EditorPage: React.FC = () => {
     }
     typingIndicatorTimeoutRef.current = setTimeout(() => {
       sendTypingIndicator(false)
-      console.log('[WebSocket] Sending typing indicator: false')
+      console.log('[Editor] Sending typing indicator: false')
     }, 1000)
     
     // Debounce the code change broadcast and auto-save
@@ -240,8 +241,9 @@ const EditorPage: React.FC = () => {
     
     codeChangeTimeoutRef.current = setTimeout(() => {
       // Send code change via WebSocket
+      console.log('[Editor] Sending code change, snippetId:', collaborationId, 'userId:', userId, 'username:', displayUsername)
       sendCodeChange(code, formData.language)
-      console.log('[WebSocket] Sending code change')
+      console.log('[Editor] Code change sent')
       
       // Auto-save to backend if this is an existing snippet
       if (!isNew && resolvedSnippetId && resolvedSnippetId !== 'new') {
@@ -736,7 +738,7 @@ const EditorPage: React.FC = () => {
               <div className="w-full h-full overflow-auto bg-gray-900">
                 <Editor
                   value={formData.code}
-                  onValueChange={(code) => setFormData(prev => ({ ...prev, code }))}
+                  onValueChange={handleCodeChange}
                   highlight={(code) => {
                     const languageMap: { [key: string]: string } = {
                       'javascript': 'javascript',
