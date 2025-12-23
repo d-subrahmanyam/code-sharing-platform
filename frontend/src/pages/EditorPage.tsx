@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
@@ -6,7 +6,7 @@ import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiC
 import Editor from 'react-simple-code-editor'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
-import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard } from '../utils/tinyUrl'
+import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard, lookupOwnerByTinyCode } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
 import { ActiveUsers, type ActiveUser } from '../components/ActiveUsers'
 import { UserJoinBubble } from '../components/UserJoinBubble'
@@ -38,11 +38,12 @@ const EditorPage: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [shareableUrl, setShareableUrl] = useState<string | null>(null)
   const [showShareModal, setShowShareModal] = useState(false)
-  const [activeUsers, setActiveUsers] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
+  const [activeUsers, setActiveUsers] = useState<Array<{ id: string; username: string; timestamp: Date; owner?: boolean }>>([])
   const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; username: string }>>([])
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [currentLineNumber, setCurrentLineNumber] = useState(1)
   const [snippetOwnerId, setSnippetOwnerId] = useState<string | null>(null)
+  const [snippetOwnerUsername, setSnippetOwnerUsername] = useState<string | null>(null)
   const [userNotifications, setUserNotifications] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
 
   const [newTag, setNewTag] = useState('')
@@ -61,9 +62,10 @@ const EditorPage: React.FC = () => {
       userIdRef.current = sessionUserId
       console.log('[EditorPage] Using existing session userId:', sessionUserId)
     } else {
-      // Check if this is a returning owner (localStorage has userId)
+      // Only reuse persistent ID for truly new snippets (not accessed via shared code)
+      const isTrulyNew = isNew && !directSnippetId && !tinyCode
       const persistentUserId = localStorage.getItem('persistentUserId')
-      if (persistentUserId && isNew) {
+      if (persistentUserId && isTrulyNew) {
         // Reuse persistent ID for owner creating new snippets
         userIdRef.current = persistentUserId
         sessionStorage.setItem('sessionUserId', persistentUserId)
@@ -73,41 +75,87 @@ const EditorPage: React.FC = () => {
         const newUserId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36)
         userIdRef.current = newUserId
         sessionStorage.setItem('sessionUserId', newUserId)
-        // Save to localStorage for owner recognition
-        if (isNew) {
+        // Save to localStorage for owner recognition only for truly new snippets
+        if (isTrulyNew) {
           localStorage.setItem('persistentUserId', newUserId)
         }
-        console.log('[EditorPage] Generated new userId:', newUserId, 'isNew:', isNew)
+        console.log('[EditorPage] Generated new userId:', newUserId, 'isTrulyNew:', isTrulyNew)
       }
     }
   }
   const userId = userIdRef.current
 
-  // Track if user is the owner
-  // For new snippets: user is automatically owner
-  // For existing snippets: only owner if userId matches snippetOwnerId from backend
-  const isOwner = isNew ? true : (snippetOwnerId === userId)
+  // Determine if current user is owner
+  // Priority: WebSocket owner field > local snippetOwnerId comparison > new snippet logic
+  const isOwner = useMemo(() => {
+    // PRIMARY: Check WebSocket owner flag - highest priority when there are active users
+    if (activeUsers.length > 0) {
+      const activeUserOwner = activeUsers.find(u => u.owner)
+      if (activeUserOwner && activeUserOwner.id === userId) {
+        return true
+      }
+      // If there are active users but none marked as owner, user is NOT owner
+      if (activeUserOwner && activeUserOwner.id !== userId) {
+        return false
+      }
+    }
+    
+    // FALLBACK: Use snippetOwnerId to identify owner
+    // This works both for direct access and shared code access
+    // When owner accesses their own shared link, they will match snippetOwnerId
+    if (snippetOwnerId && userId === snippetOwnerId) {
+      return true
+    }
+    
+    // For truly new snippets created fresh (not via shared code), user is owner
+    if (isNew && !directSnippetId && !tinyCode) {
+      return true
+    }
+    
+    return false
+  }, [activeUsers, userId, snippetOwnerId, isNew, directSnippetId, tinyCode])
 
   // Debug logging for owner detection
   useEffect(() => {
+    const ownerFromActiveUsers = activeUsers.find(u => u.owner)
+    const ownerCheckResult = {
+      hasOwnerInActiveUsers: !!ownerFromActiveUsers,
+      ownerMatchesCurrentUser: ownerFromActiveUsers?.id === userId,
+      snippetOwnerIdSet: !!snippetOwnerId,
+      snippetOwnerIdMatches: snippetOwnerId === userId,
+      isNewSnippet: isNew,
+      isNewAndNoDirectId: isNew && !directSnippetId && !tinyCode,
+      reason: '' as string
+    }
+
+    if (ownerFromActiveUsers?.id === userId) {
+      ownerCheckResult.reason = 'Owner found in activeUsers'
+    } else if (snippetOwnerId === userId) {
+      ownerCheckResult.reason = 'SnippetOwnerId matches'
+    } else if (isNew && !directSnippetId && !tinyCode) {
+      ownerCheckResult.reason = 'Truly new snippet'
+    } else {
+      ownerCheckResult.reason = 'Not owner - joinee'
+    }
+
     console.log('═══════════════════════════════════════════');
     console.log('[EditorPage] 🔍 Owner Detection Status:');
     console.log('  Current User ID:', userId);
+    console.log('  Active Users:', activeUsers.map(u => ({ id: u.id, username: u.username, owner: u.owner })));
     console.log('  Snippet Owner ID:', snippetOwnerId);
     console.log('  Is New Snippet:', isNew);
-    console.log('  Resolved Snippet ID:', resolvedSnippetId);
-    console.log('  IDs Match:', snippetOwnerId === userId);
-    console.log('  → IS OWNER:', isOwner ? '✓ YES' : '✗ NO');
+    console.log('  Check Result:', ownerCheckResult);
+    console.log('  → IS OWNER:', isOwner ? '✓ YES' : '✗ NO', `(${ownerCheckResult.reason})`);
     console.log('═══════════════════════════════════════════');
-  }, [userId, snippetOwnerId, isNew, isOwner, resolvedSnippetId])
+  }, [userId, activeUsers, snippetOwnerId, isNew, isOwner, directSnippetId, tinyCode])
 
-  // Set owner ID for new snippets
+  // Set owner ID for truly new snippets (not shared via code)
   useEffect(() => {
-    if (isNew && userId && !snippetOwnerId) {
+    if (isNew && !directSnippetId && !tinyCode && userId && !snippetOwnerId) {
       setSnippetOwnerId(userId)
       console.log('[EditorPage] Set owner ID for new snippet:', userId)
     }
-  }, [isNew, userId, snippetOwnerId])
+  }, [isNew, directSnippetId, tinyCode, userId, snippetOwnerId])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -142,9 +190,20 @@ const EditorPage: React.FC = () => {
       if (tinyCode.includes('new-snippet')) {
         logger.info('Creating new snippet with share code', { tinyCode })
         setResolvedSnippetId('new')
+        
+        // For new snippet, the current user is the owner
+        setSnippetOwnerId(userId)
+        setSnippetOwnerUsername(displayUsername || `User ${userId.substring(0, 4)}`)
+        
         const baseUrl = window.location.origin
         const shareUrl = `${baseUrl}/join/${tinyCode}`
         setShareableUrl(shareUrl)
+        
+        // Store the new snippet code to tiny code mapping for later reference
+        // Extract the actual tiny code (e.g., from "new-snippet-ABC123", get "ABC123")
+        const actualTinyCode = tinyCode.replace('new-snippet-', '')
+        storeTinyCodeMapping(tinyCode, 'new-snippet')
+        
         setIsResolving(false)
         return
       }
@@ -164,13 +223,21 @@ const EditorPage: React.FC = () => {
               logger.info('Tiny code resolved from cache', { tinyCode, snippetId: cached })
               setResolvedSnippetId(cached)
               setIsResolving(false)
+              
+              // Still fetch owner details from backend
+              const ownerDetails = await lookupOwnerByTinyCode(tinyCode)
+              if (ownerDetails) {
+                setSnippetOwnerId(ownerDetails.ownerId)
+                setSnippetOwnerUsername(ownerDetails.ownerUsername)
+                logger.info('Fetched owner details from cache', ownerDetails)
+              }
               return
             }
 
-            // Query backend for the mapping
-            const snippetId = await lookupSnippetByTinyCode(tinyCode)
+            // Query backend for owner details (includes snippet ID)
+            const ownerDetails = await lookupOwnerByTinyCode(tinyCode)
 
-            if (!snippetId) {
+            if (!ownerDetails || !ownerDetails.snippetId) {
               const error = `Snippet not found for code: ${tinyCode}`
               logger.warn('Tiny code resolution failed', { tinyCode, error })
               setResolutionError(error)
@@ -178,11 +245,20 @@ const EditorPage: React.FC = () => {
               return
             }
 
+            // Store owner details
+            setSnippetOwnerId(ownerDetails.ownerId)
+            setSnippetOwnerUsername(ownerDetails.ownerUsername)
+            
             // Store in session storage for future lookups
-            storeTinyCodeMapping(tinyCode, snippetId)
+            storeTinyCodeMapping(tinyCode, ownerDetails.snippetId)
 
-            logger.success('Tiny code resolved successfully', { tinyCode, snippetId })
-            setResolvedSnippetId(snippetId)
+            logger.success('Tiny code resolved successfully with owner details', { 
+              tinyCode, 
+              snippetId: ownerDetails.snippetId,
+              ownerId: ownerDetails.ownerId,
+              ownerUsername: ownerDetails.ownerUsername
+            })
+            setResolvedSnippetId(ownerDetails.snippetId)
             setResolutionError(null)
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Unknown error'
@@ -196,7 +272,7 @@ const EditorPage: React.FC = () => {
         resolveTinyCode()
       }
     }
-  }, [tinyCode])
+  }, [tinyCode, userId, displayUsername])
 
   useEffect(() => {
     if (!isNew && resolvedSnippetId && !tinyCode) {
@@ -241,32 +317,89 @@ const EditorPage: React.FC = () => {
   // Use WebSocket for real-time collaboration
   const collaborationId = tinyCode || resolvedSnippetId
   const notifiedUserIdsRef = useRef<Set<string>>(new Set())
+  const lastPresenceUpdateRef = useRef<number>(0)
+  const pendingPresenceRef = useRef<any>(null)
+  const PRESENCE_DEBOUNCE_MS = 2000 // Debounce presence updates to reduce flickering
   
   const { sendCodeChange, sendTypingIndicator, sendMetadataUpdate } = useWebSocketCollaboration(
     collaborationId,
     userId,
     displayUsername,
     (users) => {
-      console.log('[WebSocket] Presence update received:', users)
-      const newUsers = users.map((u: any) => ({
-        id: u.userId,
-        username: u.username,
-        timestamp: new Date(u.joinedAt),
-      }))
-      setActiveUsers(newUsers)
-      
-      // Show notifications for new users (that we haven't seen before)
-      users.forEach((user: any) => {
-        if (user.userId !== userId && !notifiedUserIdsRef.current.has(user.userId)) {
-          notifiedUserIdsRef.current.add(user.userId)
-          console.log('[WebSocket] New user notification:', user.username)
-          setUserNotifications(prev => [...prev, {
-            id: user.userId,
-            username: user.username,
-            timestamp: new Date(),
-          }])
-        }
+      console.log('[WebSocket] ===== PRESENCE UPDATE RECEIVED =====')
+      console.log('[WebSocket] Raw users data:', JSON.stringify(users, null, 2))
+      console.log('[WebSocket] Users array length:', users.length)
+      users.forEach((u: any, idx: number) => {
+        console.log(`[WebSocket] User ${idx}:`, { 
+          userId: u.userId, 
+          username: u.username, 
+          owner: u.owner, 
+          joinedAt: u.joinedAt,
+          allKeys: Object.keys(u)
+        })
       })
+      
+      // Debounce presence updates to reduce flickering
+      const now = Date.now()
+      const timeSinceLastUpdate = now - lastPresenceUpdateRef.current
+      
+      const processPresenceUpdate = () => {
+        lastPresenceUpdateRef.current = Date.now()
+        pendingPresenceRef.current = null
+        
+        const newUsers = users.map((u: any) => ({
+          id: u.userId,
+          username: u.username,
+          timestamp: new Date(u.joinedAt),
+          owner: u.owner || false,
+        }))
+        console.log('[WebSocket] Mapped users for state:', JSON.stringify(newUsers, null, 2))
+        setActiveUsers(newUsers)
+        
+        // Update snippetOwnerId if we receive owner information from WebSocket
+        const ownerUser = users.find((u: any) => u.owner)
+        if (ownerUser && !snippetOwnerId) {
+          setSnippetOwnerId(ownerUser.userId)
+          setSnippetOwnerUsername(ownerUser.username)
+          console.log('[WebSocket] Owner identified from presence update:', ownerUser.username)
+        }
+        
+        // Show notifications for new users (that we haven't seen before)
+        users.forEach((user: any) => {
+          if (user.userId !== userId && !notifiedUserIdsRef.current.has(user.userId)) {
+            notifiedUserIdsRef.current.add(user.userId)
+            console.log('[WebSocket] New user notification:', user.username, user.owner ? '(Owner)' : '(Joinee)')
+            setUserNotifications(prev => [...prev, {
+              id: user.userId,
+              username: user.username,
+              timestamp: new Date(),
+            }])
+          }
+        })
+      }
+      
+      if (timeSinceLastUpdate >= PRESENCE_DEBOUNCE_MS) {
+        // Enough time has passed, apply immediately
+        console.log('[WebSocket] Debounce: Applying immediately (', timeSinceLastUpdate, 'ms since last)')
+        processPresenceUpdate()
+      } else {
+        // Store for later and debounce
+        const delayMs = PRESENCE_DEBOUNCE_MS - timeSinceLastUpdate
+        console.log('[WebSocket] Debounce: Queueing update (will apply in', delayMs, 'ms)')
+        pendingPresenceRef.current = { users, processPresenceUpdate }
+        
+        // Clear any existing timeout
+        if (pendingPresenceRef.current.timeout) {
+          clearTimeout(pendingPresenceRef.current.timeout)
+        }
+        
+        pendingPresenceRef.current.timeout = setTimeout(() => {
+          console.log('[WebSocket] Debounce: Applying queued update after', delayMs, 'ms')
+          if (pendingPresenceRef.current?.processPresenceUpdate) {
+            pendingPresenceRef.current.processPresenceUpdate()
+          }
+        }, delayMs)
+      }
     },
     (change) => {
       console.log('[WebSocket] Code change received:', {

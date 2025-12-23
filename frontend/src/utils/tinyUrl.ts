@@ -147,6 +147,50 @@ export async function lookupSnippetByTinyCode(tinyCode: string): Promise<string 
 }
 
 /**
+ * Owner details returned when looking up a tiny code
+ */
+export interface OwnerDetails {
+  snippetId: string
+  ownerId: string
+  ownerUsername: string
+  tinyCode: string
+}
+
+/**
+ * Lookup owner details by tiny code via API
+ * Returns owner user ID, username, snippet ID, and tiny code
+ */
+export async function lookupOwnerByTinyCode(tinyCode: string): Promise<OwnerDetails | null> {
+  try {
+    if (!isValidTinyCode(tinyCode)) {
+      return null
+    }
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'}/snippets/lookup/${tinyCode}`
+    )
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      throw new Error(`Failed to lookup tiny code: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return {
+      snippetId: data.snippetId || data.id,
+      ownerId: data.ownerId,
+      ownerUsername: data.ownerUsername,
+      tinyCode: data.tinyCode || tinyCode
+    } as OwnerDetails
+  } catch (error) {
+    console.error('Error looking up owner by tiny code:', error)
+    return null
+  }
+}
+
+/**
  * Store tiny code to snippet ID mapping in session storage
  * Useful for offline lookups or caching
  */

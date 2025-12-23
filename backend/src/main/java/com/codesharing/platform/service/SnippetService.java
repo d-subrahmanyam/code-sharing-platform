@@ -142,6 +142,45 @@ public class SnippetService {
     }
 
     /**
+     * Get owner details by tiny code
+     * Returns owner user ID and username
+     *
+     * @param tinyCode The 6-character tiny code
+     * @return Map with snippetId, ownerId, and ownerUsername, or null if not found
+     */
+    public Map<String, String> getOwnerDetailsByTinyCode(String tinyCode) {
+        try {
+            var tinyUrl = tinyUrlRepository.findByShortCode(tinyCode);
+            
+            if (tinyUrl.isPresent()) {
+                var url = tinyUrl.get();
+                // Check if the URL has expired
+                if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(LocalDateTime.now())) {
+                    return null; // Expired
+                }
+                
+                // Get the owner's username from User repository
+                String ownerUsername = null;
+                var user = userRepository.findById(url.getUserId());
+                if (user.isPresent()) {
+                    ownerUsername = user.get().getUsername();
+                }
+                
+                Map<String, String> result = new HashMap<>();
+                result.put("snippetId", url.getSnippetId());
+                result.put("ownerId", url.getUserId());
+                result.put("ownerUsername", ownerUsername != null ? ownerUsername : "Unknown");
+                result.put("tinyCode", tinyCode);
+                
+                return result;
+            }
+        } catch (Exception e) {
+            // Log error if needed
+        }
+        return null;
+    }
+
+    /**
      * Create or get a tiny code for a snippet
      * Generates a new tiny code if one doesn't exist, or returns the existing one
      *

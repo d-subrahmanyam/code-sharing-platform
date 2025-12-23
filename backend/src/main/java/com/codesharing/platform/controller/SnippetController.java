@@ -112,17 +112,13 @@ class SnippetSharingController {
      */
     @GetMapping("/lookup/{tinyCode}")
     public ResponseEntity<Map<String, String>> lookupByTinyCode(@PathVariable String tinyCode) {
-        String snippetId = snippetService.getSnippetIdByTinyCode(tinyCode);
+        Map<String, String> ownerDetails = snippetService.getOwnerDetailsByTinyCode(tinyCode);
 
-        if (snippetId == null) {
+        if (ownerDetails == null) {
             return ResponseEntity.notFound().build();
         }
 
-        Map<String, String> response = new HashMap<>();
-        response.put("snippetId", snippetId);
-        response.put("id", snippetId);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ownerDetails);
     }
 
     /**

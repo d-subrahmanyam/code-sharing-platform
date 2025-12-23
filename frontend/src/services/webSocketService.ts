@@ -6,6 +6,7 @@ export interface UserPresence {
   username: string
   joinedAt: string
   isTyping: boolean
+  owner?: boolean
 }
 
 export interface CodeChangeMessage {
@@ -365,7 +366,7 @@ export class WebSocketService {
           clearInterval(checkInterval)
           resolve()
         }
-      }, 100)
+      }, 200)
 
       // Timeout after 10 seconds
       setTimeout(() => {

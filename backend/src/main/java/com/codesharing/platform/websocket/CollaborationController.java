@@ -1,6 +1,8 @@
 package com.codesharing.platform.websocket;
 
 import com.codesharing.platform.service.CollaborationService;
+import com.codesharing.platform.service.SnippetService;
+import com.codesharing.platform.dto.SnippetDTO;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Controller;
 public class CollaborationController {
 
   private final CollaborationService collaborationService;
+  private final SnippetService snippetService;
   private final SimpMessagingTemplate messagingTemplate;
 
   /**
@@ -37,8 +40,26 @@ public class CollaborationController {
 
     collaborationService.joinSession(snippetId, userId, username);
 
+    // Set owner from snippet metadata if available, otherwise keep first user as owner
+    try {
+      SnippetDTO snippet = snippetService.getSnippetById(snippetId);
+      if (snippet != null && snippet.getAuthorId() != null) {
+        collaborationService.setSessionOwner(snippetId, snippet.getAuthorId());
+        System.out.println("[Collaboration] Owner set from snippet: " + snippet.getAuthorId() + " for snippet " + snippetId);
+      } else {
+        System.out.println("[Collaboration] Snippet not found or has no author for: " + snippetId);
+      }
+    } catch (Exception e) {
+      System.out.println("[Collaboration] Could not load snippet owner: " + e.getMessage());
+    }
+
     // Broadcast updated presence to all subscribers
     List<Map<String, Object>> activeUsers = collaborationService.getActiveUsers(snippetId);
+    System.out.println("[Collaboration] Broadcasting presence for snippet " + snippetId + " with users:");
+    activeUsers.forEach(u -> {
+      System.out.println("  - " + u.get("username") + " (owner: " + u.get("owner") + ")");
+    });
+    
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/presence",
       new PresenceMessage("user_joined", userId, username, activeUsers)

@@ -27,6 +27,12 @@ public class CollaborationService {
   private final Map<String, Map<String, Boolean>> typingIndicators = new ConcurrentHashMap<>();
 
   /**
+   * Structure: snippetId -> owner userId
+   * Tracks the first user who joined (the session owner)
+   */
+  private final Map<String, String> sessionOwners = new ConcurrentHashMap<>();
+
+  /**
    * User presence information
    */
   public static class UserPresence {
@@ -45,11 +51,23 @@ public class CollaborationService {
 
   /**
    * Add user to snippet session
+   * First user to join becomes the owner (if not already set)
    */
   public void joinSession(String snippetId, String userId, String username) {
     activePresence
       .computeIfAbsent(snippetId, k -> new ConcurrentHashMap<>())
       .put(userId, new UserPresence(userId, username));
+    
+    // Mark first user as owner (if owner not already set)
+    sessionOwners.computeIfAbsent(snippetId, k -> userId);
+  }
+
+  /**
+   * Set the owner for a snippet session
+   * Used when loading snippet from database to restore owner info
+   */
+  public void setSessionOwner(String snippetId, String ownerId) {
+    sessionOwners.put(snippetId, ownerId);
   }
 
   /**
@@ -67,9 +85,12 @@ public class CollaborationService {
 
   /**
    * Get all active users in a snippet session
+   * Includes owner flag for each user
    */
   public List<Map<String, Object>> getActiveUsers(String snippetId) {
     List<Map<String, Object>> users = new ArrayList<>();
+    String ownerId = sessionOwners.get(snippetId);
+    
     if (activePresence.containsKey(snippetId)) {
       for (UserPresence presence : activePresence.get(snippetId).values()) {
         Map<String, Object> userData = new HashMap<>();
@@ -79,6 +100,7 @@ public class CollaborationService {
         userData.put("isTyping", typingIndicators
           .getOrDefault(snippetId, new HashMap<>())
           .getOrDefault(presence.userId, false));
+        userData.put("owner", presence.userId.equals(ownerId));
         users.add(userData);
       }
     }
@@ -149,5 +171,12 @@ public class CollaborationService {
    */
   public int getActiveUserCount(String snippetId) {
     return activePresence.getOrDefault(snippetId, new HashMap<>()).size();
+  }
+
+  /**
+   * Get the owner userId for a snippet
+   */
+  public String getSessionOwner(String snippetId) {
+    return sessionOwners.get(snippetId);
   }
 }
