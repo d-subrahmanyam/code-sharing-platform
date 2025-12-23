@@ -45,6 +45,7 @@ const EditorPage: React.FC = () => {
   const [snippetOwnerId, setSnippetOwnerId] = useState<string | null>(null)
   const [snippetOwnerUsername, setSnippetOwnerUsername] = useState<string | null>(null)
   const [userNotifications, setUserNotifications] = useState<Array<{ id: string; username: string; timestamp: Date }>>([])
+  const [elapsedTime, setElapsedTime] = useState<number>(0) // Time in seconds since joining
 
   const [newTag, setNewTag] = useState('')
   const [currentUser] = useState(null) // In real app, get from Redux auth state
@@ -274,8 +275,9 @@ const EditorPage: React.FC = () => {
     }
   }, [tinyCode, userId, displayUsername])
 
+  // Fetch snippet data for both direct access and joinee sessions
   useEffect(() => {
-    if (!isNew && resolvedSnippetId && !tinyCode) {
+    if (!isNew && resolvedSnippetId) {
       console.log('[EditorPage] Fetching snippet data...')
       setIsLoadingSnippet(true)
       dispatch({
@@ -283,7 +285,7 @@ const EditorPage: React.FC = () => {
         payload: { id: resolvedSnippetId },
       } as any)
     }
-  }, [resolvedSnippetId, isNew, tinyCode, dispatch])
+  }, [resolvedSnippetId, isNew, dispatch])
 
   useEffect(() => {
     if (snippet && !isNew) {
@@ -534,6 +536,18 @@ const EditorPage: React.FC = () => {
       }, 1000)
     }
   }
+
+  // Timer effect for elapsed time display
+  useEffect(() => {
+    if (!isNew && resolvedSnippetId) {
+      // Reset timer when entering a session
+      setElapsedTime(0)
+      const timerInterval = setInterval(() => {
+        setElapsedTime(prev => prev + 1)
+      }, 1000)
+      return () => clearInterval(timerInterval)
+    }
+  }, [resolvedSnippetId, isNew])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -818,7 +832,14 @@ const EditorPage: React.FC = () => {
                 {displayUsername}
               </div>
             )}
-            {shareableUrl && (
+            {/* Timer Display */}
+            {!isNew && elapsedTime > 0 && (
+              <div className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
+                ⏱️ {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}
+              </div>
+            )}
+            {/* Share and Save buttons - only for owner */}
+            {isOwner && shareableUrl && (
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setShowShareModal(true)}
@@ -839,14 +860,17 @@ const EditorPage: React.FC = () => {
                 </button>
               </div>
             )}
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-            >
-              <FiSave size={18} />
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
+            {/* Save button - only for owner */}
+            {isOwner && (
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                <FiSave size={18} />
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            )}
           </div>
         </div>
       </header>
