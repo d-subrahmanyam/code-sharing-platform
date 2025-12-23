@@ -187,29 +187,10 @@ const EditorPage: React.FC = () => {
   // Resolve tiny code to snippet ID on mount or when tinyCode changes
   useEffect(() => {
     if (tinyCode) {
-      // Handle new snippet creation with tiny code
-      if (tinyCode.includes('new-snippet')) {
-        logger.info('Creating new snippet with share code', { tinyCode })
-        setResolvedSnippetId('new')
-        
-        // For new snippet, the current user is the owner
-        setSnippetOwnerId(userId)
-        setSnippetOwnerUsername(displayUsername || `User ${userId.substring(0, 4)}`)
-        
-        const baseUrl = window.location.origin
-        const shareUrl = `${baseUrl}/join/${tinyCode}`
-        setShareableUrl(shareUrl)
-        
-        // Store the new snippet code to tiny code mapping for later reference
-        // Extract the actual tiny code (e.g., from "new-snippet-ABC123", get "ABC123")
-        const actualTinyCode = tinyCode.replace('new-snippet-', '')
-        storeTinyCodeMapping(tinyCode, 'new-snippet')
-        
-        setIsResolving(false)
-        return
-      }
-
-      // Handle normal tiny code resolution
+      // Don't treat "new-snippet-XXXX" as new snippets
+      // These are temporary share codes that need to be resolved to actual snippet IDs
+      // All tiny codes should go through the normal resolution flow
+      
       if (isValidTinyCode(tinyCode)) {
         setIsResolving(true)
         setResolutionError(null)
@@ -249,23 +230,17 @@ const EditorPage: React.FC = () => {
             // Store owner details
             setSnippetOwnerId(ownerDetails.ownerId)
             setSnippetOwnerUsername(ownerDetails.ownerUsername)
-            
-            // Store in session storage for future lookups
-            storeTinyCodeMapping(tinyCode, ownerDetails.snippetId)
 
-            logger.success('Tiny code resolved successfully with owner details', { 
-              tinyCode, 
-              snippetId: ownerDetails.snippetId,
-              ownerId: ownerDetails.ownerId,
-              ownerUsername: ownerDetails.ownerUsername
-            })
+            // Store mapping for future references
+            storeTinyCodeMapping(tinyCode, ownerDetails.snippetId)
+            
+            // Set the ACTUAL snippet ID (not 'new')
+            logger.info('Resolved tiny code to snippet ID', { tinyCode, snippetId: ownerDetails.snippetId })
             setResolvedSnippetId(ownerDetails.snippetId)
-            setResolutionError(null)
+            setIsResolving(false)
           } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-            logger.error('Error resolving tiny code', error, { tinyCode })
-            setResolutionError(errorMsg)
-          } finally {
+            logger.error('Error resolving tiny code', error)
+            setResolutionError('Failed to resolve snippet. It may have been deleted.')
             setIsResolving(false)
           }
         }
