@@ -62,18 +62,29 @@ public class CollaborationController {
     
     // Fetch snippet title to send to joinee
     String snippetTitle = "";
+    System.out.println("[Collaboration] Starting snippet title fetch for snippetId: '" + snippetId + "'");
     try {
       SnippetDTO snippet = snippetService.getSnippetById(snippetId);
-      if (snippet != null && snippet.getTitle() != null) {
-        snippetTitle = snippet.getTitle();
+      System.out.println("[Collaboration] Fetched snippet: " + (snippet != null ? "FOUND" : "NULL"));
+      if (snippet != null) {
+        String rawTitle = snippet.getTitle();
+        System.out.println("[Collaboration] Raw title from DTO: " + (rawTitle == null ? "NULL" : "'" + rawTitle + "'"));
+        snippetTitle = rawTitle != null ? rawTitle : "";
+        System.out.println("[Collaboration] Snippet title after processing: '" + snippetTitle + "'");
+      } else {
+        System.out.println("[Collaboration] Snippet is NULL - cannot fetch title");
       }
     } catch (Exception e) {
-      System.out.println("[Collaboration] Could not fetch snippet title: " + e.getMessage());
+      System.out.println("[Collaboration] EXCEPTION fetching snippet title: " + e.getMessage());
+      e.printStackTrace();
     }
     
+    System.out.println("[Collaboration] FINAL: Sending presence with title: '" + snippetTitle + "' (length: " + snippetTitle.length() + ")");
+    PresenceMessage msg = new PresenceMessage("user_joined", userId, username, activeUsers, snippetTitle);
+    System.out.println("[Collaboration] PresenceMessage object created: type=" + msg.type + ", snippetTitle=" + msg.snippetTitle);
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/presence",
-      new PresenceMessage("user_joined", userId, username, activeUsers, snippetTitle)
+      msg
     );
   }
 
@@ -95,15 +106,24 @@ public class CollaborationController {
     
     // Fetch snippet title to send to remaining users
     String snippetTitle = "";
+    System.out.println("[Collaboration] Starting snippet title fetch for user_left on snippetId: '" + snippetId + "'");
     try {
       SnippetDTO snippet = snippetService.getSnippetById(snippetId);
-      if (snippet != null && snippet.getTitle() != null) {
-        snippetTitle = snippet.getTitle();
+      System.out.println("[Collaboration] Fetched snippet: " + (snippet != null ? "FOUND" : "NULL"));
+      if (snippet != null) {
+        String rawTitle = snippet.getTitle();
+        System.out.println("[Collaboration] Raw title from DTO: " + (rawTitle == null ? "NULL" : "'" + rawTitle + "'"));
+        snippetTitle = rawTitle != null ? rawTitle : "";
+        System.out.println("[Collaboration] Snippet title after processing: '" + snippetTitle + "'");
+      } else {
+        System.out.println("[Collaboration] Snippet is NULL - cannot fetch title");
       }
     } catch (Exception e) {
-      System.out.println("[Collaboration] Could not fetch snippet title: " + e.getMessage());
+      System.out.println("[Collaboration] EXCEPTION fetching snippet title: " + e.getMessage());
+      e.printStackTrace();
     }
     
+    System.out.println("[Collaboration] FINAL user_left: Sending presence with title: '" + snippetTitle + "' (length: " + snippetTitle.length() + ")");
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/presence",
       new PresenceMessage("user_left", userId, "", activeUsers, snippetTitle)
