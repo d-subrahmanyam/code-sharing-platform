@@ -325,8 +325,9 @@ const EditorPage: React.FC = () => {
     collaborationId,
     userId,
     displayUsername,
-    (users) => {
+    (users, snippetTitle) => {
       console.log('[WebSocket] ===== PRESENCE UPDATE RECEIVED =====')
+      console.log('[WebSocket] Snippet Title from presence:', snippetTitle)
       console.log('[WebSocket] Raw users data:', JSON.stringify(users, null, 2))
       console.log('[WebSocket] Users array length:', users.length)
       users.forEach((u: any, idx: number) => {
@@ -362,6 +363,15 @@ const EditorPage: React.FC = () => {
           setSnippetOwnerId(ownerUser.userId)
           setSnippetOwnerUsername(ownerUser.username)
           console.log('[WebSocket] Owner identified from presence update:', ownerUser.username)
+        }
+        
+        // Update snippet title if provided and we're a joinee
+        if (snippetTitle && !isOwner && !formData.title) {
+          console.log('[WebSocket] Updating snippet title from presence:', snippetTitle)
+          setFormData(prev => ({
+            ...prev,
+            title: snippetTitle
+          }))
         }
         
         // Show notifications for new users (that we haven't seen before)

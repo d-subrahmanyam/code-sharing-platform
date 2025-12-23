@@ -22,6 +22,7 @@ export interface PresenceMessage {
   userId: string
   username: string
   activeUsers: UserPresence[]
+  snippetTitle?: string
 }
 
 export interface TypingStatusMessage {

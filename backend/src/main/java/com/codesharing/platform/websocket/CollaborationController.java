@@ -60,9 +60,20 @@ public class CollaborationController {
       System.out.println("  - " + u.get("username") + " (owner: " + u.get("owner") + ")");
     });
     
+    // Fetch snippet title to send to joinee
+    String snippetTitle = "";
+    try {
+      SnippetDTO snippet = snippetService.getSnippetById(snippetId);
+      if (snippet != null && snippet.getTitle() != null) {
+        snippetTitle = snippet.getTitle();
+      }
+    } catch (Exception e) {
+      System.out.println("[Collaboration] Could not fetch snippet title: " + e.getMessage());
+    }
+    
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/presence",
-      new PresenceMessage("user_joined", userId, username, activeUsers)
+      new PresenceMessage("user_joined", userId, username, activeUsers, snippetTitle)
     );
   }
 
@@ -81,9 +92,21 @@ public class CollaborationController {
 
     // Broadcast updated presence to all subscribers
     List<Map<String, Object>> activeUsers = collaborationService.getActiveUsers(snippetId);
+    
+    // Fetch snippet title to send to remaining users
+    String snippetTitle = "";
+    try {
+      SnippetDTO snippet = snippetService.getSnippetById(snippetId);
+      if (snippet != null && snippet.getTitle() != null) {
+        snippetTitle = snippet.getTitle();
+      }
+    } catch (Exception e) {
+      System.out.println("[Collaboration] Could not fetch snippet title: " + e.getMessage());
+    }
+    
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/presence",
-      new PresenceMessage("user_left", userId, "", activeUsers)
+      new PresenceMessage("user_left", userId, "", activeUsers, snippetTitle)
     );
   }
 
@@ -174,12 +197,18 @@ public class CollaborationController {
     public String userId;
     public String username;
     public List<Map<String, Object>> activeUsers;
+    public String snippetTitle;
 
     public PresenceMessage(String type, String userId, String username, List<Map<String, Object>> activeUsers) {
+      this(type, userId, username, activeUsers, "");
+    }
+
+    public PresenceMessage(String type, String userId, String username, List<Map<String, Object>> activeUsers, String snippetTitle) {
       this.type = type;
       this.userId = userId;
       this.username = username;
       this.activeUsers = activeUsers;
+      this.snippetTitle = snippetTitle;
     }
   }
 
