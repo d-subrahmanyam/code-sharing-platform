@@ -24,9 +24,6 @@ RUN npm run build
 # Production stage - serve with nginx
 FROM nginx:alpine
 
-# Install curl and openssl for health checks and cert verification
-RUN apk add --no-cache curl openssl
-
 # Create certs directory
 RUN mkdir -p /etc/nginx/certs
 
