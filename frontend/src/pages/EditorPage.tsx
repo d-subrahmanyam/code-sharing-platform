@@ -194,14 +194,16 @@ const EditorPage: React.FC = () => {
         // Set resolvedSnippetId to 'new' to indicate this is a new snippet
         setResolvedSnippetId('new')
         
-        // Set snippetOwnerId to current user UNLESS we already have other users in the session
-        // (which would indicate this is a joinee joining an existing new-snippet session)
-        // The presence handler will override this if activeUsers contains a different owner
-        if (activeUsers.length === 0) {
-          // No other users yet - this must be the owner creating the snippet
-          setSnippetOwnerId(userId)
-          console.log('[EditorPage] New snippet detected with no active users - setting as owner')
-        }
+        // IMPORTANT: Do NOT set snippetOwnerId here!
+        // For new-snippet URLs, ownership is determined by:
+        // 1. WebSocket activeUsers owner flag (when presence arrives) - HIGHEST PRIORITY
+        // 2. isOwner fallback logic: if (isNew && !directSnippetId && !tinyCode) for truly fresh snippets
+        // 
+        // Timing scenario:
+        // - Owner creates snippet (no tinyCode, no directSnippetId) → isNew=true, tinyCode=null → isOwner=true ✓
+        // - Owner shares: /join/new-snippet-XXXX
+        // - Joinee joins with that URL → isNew=true, tinyCode='new-snippet-XXXX' → isOwner=false ✓
+        // - WebSocket presence arrives with owner flag → sets snippetOwnerId correctly
         
         // Generate and set the shareable URL for the owner to share
         const shareableURL = generateShareableURL(tinyCode)
@@ -270,7 +272,7 @@ const EditorPage: React.FC = () => {
         resolveTinyCode()
       }
     }
-  }, [tinyCode, userId, displayUsername, activeUsers])
+  }, [tinyCode, userId, displayUsername])
 
   // Fetch snippet data for both direct access and joinee sessions
   useEffect(() => {
