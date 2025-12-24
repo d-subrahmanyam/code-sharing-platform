@@ -6,7 +6,7 @@ import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiC
 import Editor from 'react-simple-code-editor'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
-import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard, lookupOwnerByTinyCode } from '../utils/tinyUrl'
+import { lookupSnippetByTinyCode, getTinyCodeMapping, storeTinyCodeMapping, isValidTinyCode, createSnippetShare, copyToClipboard, lookupOwnerByTinyCode, generateShareableURL } from '../utils/tinyUrl'
 import { logger } from '../utils/logger'
 import { ActiveUsers, type ActiveUser } from '../components/ActiveUsers'
 import { UserJoinBubble } from '../components/UserJoinBubble'
@@ -196,6 +196,12 @@ const EditorPage: React.FC = () => {
         setResolvedSnippetId('new')
         // Set the owner to the current user since they're creating it
         setSnippetOwnerId(userId)
+        
+        // Generate and set the shareable URL for the owner to share
+        const shareableURL = generateShareableURL(tinyCode)
+        setShareableUrl(shareableURL)
+        console.log('[EditorPage] Set shareable URL for new snippet:', shareableURL)
+        
         setIsResolving(false)
         return
       }
