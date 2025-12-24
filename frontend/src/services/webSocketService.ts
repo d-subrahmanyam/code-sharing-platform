@@ -30,6 +30,11 @@ export interface PresenceMessage {
   activeUsers: UserPresence[]
   snippetTitle?: string
   ownerDetails?: OwnerDetails
+  // Owner's current metadata fields for joinee synchronization
+  ownerTitle?: string
+  ownerDescription?: string
+  ownerLanguage?: string
+  ownerTags?: string[]
 }
 
 export interface TypingStatusMessage {

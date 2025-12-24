@@ -3,6 +3,7 @@ package com.codesharing.platform.websocket;
 import com.codesharing.platform.service.CollaborationService;
 import com.codesharing.platform.service.SnippetService;
 import com.codesharing.platform.dto.SnippetDTO;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -218,6 +219,11 @@ public class CollaborationController {
     public String username;
     public List<Map<String, Object>> activeUsers;
     public String snippetTitle;
+    // Owner's current metadata for joinee synchronization
+    public String ownerTitle;
+    public String ownerDescription;
+    public String ownerLanguage;
+    public List<String> ownerTags;
 
     public PresenceMessage(String type, String userId, String username, List<Map<String, Object>> activeUsers) {
       this(type, userId, username, activeUsers, "");
@@ -229,6 +235,10 @@ public class CollaborationController {
       this.username = username;
       this.activeUsers = activeUsers;
       this.snippetTitle = snippetTitle;
+      this.ownerTitle = "";
+      this.ownerDescription = "";
+      this.ownerLanguage = "";
+      this.ownerTags = new ArrayList<>();
     }
   }
 

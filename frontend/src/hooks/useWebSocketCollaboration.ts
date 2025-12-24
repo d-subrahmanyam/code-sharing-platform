@@ -16,7 +16,7 @@ export function useWebSocketCollaboration(
   snippetId: string | null | undefined,
   userId: string,
   username: string | null,
-  onPresenceUpdate: (users: UserPresence[], snippetTitle?: string) => void,
+  onPresenceUpdate: (users: UserPresence[], snippetTitle?: string, presenceMessage?: PresenceMessage) => void,
   onCodeChange: (change: CodeChangeMessage) => void,
   onTypingUpdate: (typingUsers: Array<{ userId: string; username: string }>) => void,
   onMetadataUpdate?: (metadata: any) => void
@@ -112,7 +112,7 @@ export function useWebSocketCollaboration(
         // Subscribe to presence updates
         webSocketService.subscribeToPresence(snippetId, (message: PresenceMessage) => {
           console.log('[useWebSocketCollaboration] Presence update:', message)
-          onPresenceUpdate(message.activeUsers, message.snippetTitle)
+          onPresenceUpdate(message.activeUsers, message.snippetTitle, message)
         })
 
         // Subscribe to code changes

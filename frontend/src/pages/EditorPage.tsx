@@ -292,9 +292,15 @@ const EditorPage: React.FC = () => {
     collaborationId,
     userId,
     displayUsername,
-    (users, snippetTitle) => {
+    (users, snippetTitle, presenceMessage) => {
       console.log('[WebSocket] ===== PRESENCE UPDATE RECEIVED =====')
       console.log('[WebSocket] Snippet Title from presence:', snippetTitle)
+      console.log('[WebSocket] Owner Metadata from presence:', {
+        ownerTitle: presenceMessage?.ownerTitle,
+        ownerDescription: presenceMessage?.ownerDescription,
+        ownerLanguage: presenceMessage?.ownerLanguage,
+        ownerTags: presenceMessage?.ownerTags,
+      })
       console.log('[WebSocket] Raw users data:', JSON.stringify(users, null, 2))
       console.log('[WebSocket] Users array length:', users.length)
       users.forEach((u: any, idx: number) => {
@@ -346,6 +352,57 @@ const EditorPage: React.FC = () => {
             type: 'SNIPPET_SET_TITLE_FROM_OWNER',
             payload: { title: snippetTitle }
           })
+        }
+        
+        // Apply owner's current metadata if joinee (for real-time synchronization)
+        // This ensures joinee gets owner's metadata that might not be in the database yet
+        if (!isOwner && presenceMessage) {
+          console.log('[WebSocket] Joinee receiving owner metadata from presence:', {
+            hasOwnerTitle: !!presenceMessage.ownerTitle,
+            hasOwnerDescription: !!presenceMessage.ownerDescription,
+            hasOwnerLanguage: !!presenceMessage.ownerLanguage,
+            hasOwnerTags: !!presenceMessage.ownerTags,
+          })
+          
+          // Update formData with owner's current metadata
+          setFormData(prev => {
+            let updated = false
+            const newFormData = { ...prev }
+            
+            if (presenceMessage.ownerTitle && (!prev.title || prev.title === 'Untitled Snippet')) {
+              newFormData.title = presenceMessage.ownerTitle
+              updated = true
+              console.log('[WebSocket] Joinee set title from owner metadata:', presenceMessage.ownerTitle)
+            }
+            
+            if (presenceMessage.ownerDescription && !prev.description) {
+              newFormData.description = presenceMessage.ownerDescription
+              updated = true
+              console.log('[WebSocket] Joinee set description from owner metadata:', presenceMessage.ownerDescription)
+            }
+            
+            if (presenceMessage.ownerLanguage && prev.language === 'javascript') {
+              newFormData.language = presenceMessage.ownerLanguage
+              updated = true
+              console.log('[WebSocket] Joinee set language from owner metadata:', presenceMessage.ownerLanguage)
+            }
+            
+            if (presenceMessage.ownerTags && presenceMessage.ownerTags.length > 0 && prev.tags.length === 0) {
+              newFormData.tags = presenceMessage.ownerTags
+              updated = true
+              console.log('[WebSocket] Joinee set tags from owner metadata:', presenceMessage.ownerTags)
+            }
+            
+            return updated ? newFormData : prev
+          })
+          
+          // Also dispatch to Redux store for persistence
+          if (presenceMessage.ownerTitle) {
+            dispatch({
+              type: 'SNIPPET_SET_TITLE_FROM_OWNER',
+              payload: { title: presenceMessage.ownerTitle }
+            })
+          }
         }
         
         // Show notifications for new users (that we haven't seen before)
