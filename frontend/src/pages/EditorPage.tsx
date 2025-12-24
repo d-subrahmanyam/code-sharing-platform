@@ -11,6 +11,7 @@ import { logger } from '../utils/logger'
 import { ActiveUsers, type ActiveUser } from '../components/ActiveUsers'
 import { UserJoinBubble } from '../components/UserJoinBubble'
 import { useWebSocketCollaboration } from '../hooks/useWebSocketCollaboration'
+import { useOwnerJoineeSession } from '../hooks/useOwnerJoineeSession'
 import './EditorPage.css'
 
 /**
@@ -27,11 +28,8 @@ const EditorPage: React.FC = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   
-  // Determine if this is owner (/start) or joinee (/join) session
-  const isOwnerSession = location.pathname.startsWith('/start/')
-  
   // Debug logging
-  console.log('EditorPage loaded', { directSnippetId, tinyCode, isOwnerSession, pathname: location.pathname })
+  console.log('EditorPage loaded', { directSnippetId, tinyCode, pathname: location.pathname })
 
   const [resolvedSnippetId, setResolvedSnippetId] = useState<string | null>(directSnippetId || null)
   const [isResolving, setIsResolving] = useState(false)
@@ -94,79 +92,15 @@ const EditorPage: React.FC = () => {
   }
   const userId = userIdRef.current
 
-  // Determine if current user is owner
-  // Priority: URL route (/start) > WebSocket owner field > local snippetOwnerId > new snippet logic
-  const isOwner = useMemo(() => {
-    // HIGHEST PRIORITY: Check URL route - /start indicates owner session
-    if (isOwnerSession) {
-      return true
-    }
-    
-    // If on /join route, definitely not owner
-    if (location.pathname.startsWith('/join/')) {
-      return false
-    }
-    
-    // PRIMARY: Check WebSocket owner flag - highest priority when there are active users
-    if (activeUsers.length > 0) {
-      const activeUserOwner = activeUsers.find(u => u.owner)
-      if (activeUserOwner && activeUserOwner.id === userId) {
-        return true
-      }
-      // If there are active users but none marked as owner, user is NOT owner
-      if (activeUserOwner && activeUserOwner.id !== userId) {
-        return false
-      }
-    }
-    
-    // FALLBACK: Use snippetOwnerId to identify owner
-    // This works both for direct access and shared code access
-    // When owner accesses their own shared link, they will match snippetOwnerId
-    if (snippetOwnerId && userId === snippetOwnerId) {
-      return true
-    }
-    
-    // For truly new snippets created fresh (not via shared code), user is owner
-    if (isNew && !directSnippetId && !tinyCode) {
-      return true
-    }
-    
-    return false
-  }, [isOwnerSession, location.pathname, activeUsers, userId, snippetOwnerId, isNew, directSnippetId, tinyCode])
-
-  // Debug logging for owner detection
-  useEffect(() => {
-    const ownerFromActiveUsers = activeUsers.find(u => u.owner)
-    const ownerCheckResult = {
-      hasOwnerInActiveUsers: !!ownerFromActiveUsers,
-      ownerMatchesCurrentUser: ownerFromActiveUsers?.id === userId,
-      snippetOwnerIdSet: !!snippetOwnerId,
-      snippetOwnerIdMatches: snippetOwnerId === userId,
-      isNewSnippet: isNew,
-      isNewAndNoDirectId: isNew && !directSnippetId && !tinyCode,
-      reason: '' as string
-    }
-
-    if (ownerFromActiveUsers?.id === userId) {
-      ownerCheckResult.reason = 'Owner found in activeUsers'
-    } else if (snippetOwnerId === userId) {
-      ownerCheckResult.reason = 'SnippetOwnerId matches'
-    } else if (isNew && !directSnippetId && !tinyCode) {
-      ownerCheckResult.reason = 'Truly new snippet'
-    } else {
-      ownerCheckResult.reason = 'Not owner - joinee'
-    }
-
-    console.log('═══════════════════════════════════════════');
-    console.log('[EditorPage] 🔍 Owner Detection Status:');
-    console.log('  Current User ID:', userId);
-    console.log('  Active Users:', activeUsers.map(u => ({ id: u.id, username: u.username, owner: u.owner })));
-    console.log('  Snippet Owner ID:', snippetOwnerId);
-    console.log('  Is New Snippet:', isNew);
-    console.log('  Check Result:', ownerCheckResult);
-    console.log('  → IS OWNER:', isOwner ? '✓ YES' : '✗ NO', `(${ownerCheckResult.reason})`);
-    console.log('═══════════════════════════════════════════');
-  }, [userId, activeUsers, snippetOwnerId, isNew, isOwner, directSnippetId, tinyCode])
+  // Use custom hook for owner/joinee determination
+  const { isOwner, isOwnerSession, isJoineeSession } = useOwnerJoineeSession({
+    userId: userId || null,
+    activeUsers,
+    snippetOwnerId,
+    isNew,
+    directSnippetId,
+    tinyCode,
+  })
 
   // Set owner ID for truly new snippets (not shared via code)
   useEffect(() => {
