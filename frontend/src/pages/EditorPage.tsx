@@ -365,6 +365,11 @@ const EditorPage: React.FC = () => {
             ...prev,
             title: snippetTitle
           }))
+          // Also dispatch to Redux store so joinee can access title
+          dispatch({
+            type: 'SNIPPET_SET_TITLE_FROM_OWNER',
+            payload: { title: snippetTitle }
+          })
         }
         
         // Show notifications for new users (that we haven't seen before)
@@ -451,6 +456,13 @@ const EditorPage: React.FC = () => {
           language: metadata.language !== undefined ? metadata.language : prev.language,
           tags: metadata.tags !== undefined ? metadata.tags : prev.tags,
         }))
+        // Update Redux store with title from owner
+        if (metadata.title !== undefined) {
+          dispatch({
+            type: 'SNIPPET_SET_TITLE_FROM_OWNER',
+            payload: { title: metadata.title }
+          })
+        }
         // Update line number based on new language if needed
         const currentLine = formData.code.split('\n').length
         setCurrentLineNumber(currentLine)

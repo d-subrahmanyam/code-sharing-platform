@@ -9,6 +9,12 @@ export interface UserPresence {
   owner?: boolean
 }
 
+export interface OwnerDetails {
+  userId: string
+  username: string
+  owner: true
+}
+
 export interface CodeChangeMessage {
   userId: string
   username: string
@@ -23,6 +29,7 @@ export interface PresenceMessage {
   username: string
   activeUsers: UserPresence[]
   snippetTitle?: string
+  ownerDetails?: OwnerDetails
 }
 
 export interface TypingStatusMessage {

@@ -15,6 +15,7 @@ import {
   SNIPPET_DELETE_REQUEST,
   SNIPPET_DELETE_SUCCESS,
   SNIPPET_DELETE_FAILURE,
+  SNIPPET_SET_TITLE_FROM_OWNER,
 } from '../actionTypes'
 import type { SnippetState } from '../../types/redux'
 
@@ -73,6 +74,18 @@ export default function snippetReducer(
         ...state,
         items: state.items.filter((snippet) => snippet.id !== action.payload),
         currentSnippet: null,
+        loading: false,
+      }
+
+    case SNIPPET_SET_TITLE_FROM_OWNER:
+      return {
+        ...state,
+        currentSnippet: state.currentSnippet
+          ? {
+              ...state.currentSnippet,
+              title: action.payload.title,
+            }
+          : null,
         loading: false,
       }
 
