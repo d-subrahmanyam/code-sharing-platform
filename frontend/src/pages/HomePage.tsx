@@ -68,10 +68,21 @@ const HomePage: React.FC = () => {
       setShowUsernameDialog(false)
       setUsernameInput('')
       
+      // Get or create persistent userId
+      let userId = localStorage.getItem('persistentUserId')
+      if (!userId) {
+        userId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36)
+        localStorage.setItem('persistentUserId', userId)
+      }
+      
       // NOW generate the tiny code and navigate
       const tinyCode = createSnippetShare('new-snippet').tinyCode
       const newSnippetTinyCode = `new-snippet-${tinyCode}`
-      logger.info('Creating new snippet with share URL', { tinyCode: newSnippetTinyCode, username })
+      
+      // Store creator info so EditorPage can identify ownership immediately
+      localStorage.setItem(`snippet-creator-${newSnippetTinyCode}`, JSON.stringify({ userId, username }))
+      
+      logger.info('Creating new snippet with share URL', { tinyCode: newSnippetTinyCode, username, userId })
       navigate(`/join/${newSnippetTinyCode}`)
       
       setPendingSnippetCreation(false)
@@ -91,10 +102,21 @@ const HomePage: React.FC = () => {
     setShowUsernameDialog(false)
     setUsernameInput('')
     
+    // Get or create persistent userId
+    let userId = localStorage.getItem('persistentUserId')
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36)
+      localStorage.setItem('persistentUserId', userId)
+    }
+    
     // Navigate with default username
     const tinyCode = createSnippetShare('new-snippet').tinyCode
     const newSnippetTinyCode = `new-snippet-${tinyCode}`
-    logger.info('Creating new snippet with default username', { tinyCode: newSnippetTinyCode, username: defaultUsername })
+    
+    // Store creator info so EditorPage can identify ownership immediately
+    localStorage.setItem(`snippet-creator-${newSnippetTinyCode}`, JSON.stringify({ userId, username: defaultUsername }))
+    
+    logger.info('Creating new snippet with default username', { tinyCode: newSnippetTinyCode, username: defaultUsername, userId })
     navigate(`/join/${newSnippetTinyCode}`)
     
     setPendingSnippetCreation(false)

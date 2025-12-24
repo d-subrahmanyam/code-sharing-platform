@@ -63,16 +63,19 @@ const EditorPage: React.FC = () => {
       userIdRef.current = sessionUserId
       console.log('[EditorPage] Using existing session userId:', sessionUserId)
     } else {
-      // Only reuse persistent ID for truly new snippets (not accessed via shared code)
-      const isTrulyNew = isNew && !directSnippetId && !tinyCode
       const persistentUserId = localStorage.getItem('persistentUserId')
-      if (persistentUserId && isTrulyNew) {
-        // Reuse persistent ID for owner creating new snippets
+      const isTrulyNew = isNew && !directSnippetId && !tinyCode
+      const isNewSnippetShare = isNew && tinyCode && tinyCode.startsWith('new-snippet-')
+      
+      // Reuse persistent ID if: (1) truly new snippet OR (2) accessing a new-snippet share URL
+      // This allows owner to be identified immediately when opening their share link
+      if (persistentUserId && (isTrulyNew || isNewSnippetShare)) {
+        // Reuse persistent ID for owner accessing new snippets
         userIdRef.current = persistentUserId
         sessionStorage.setItem('sessionUserId', persistentUserId)
-        console.log('[EditorPage] Reusing persistent userId for owner:', persistentUserId)
+        console.log('[EditorPage] Reusing persistent userId for owner:', persistentUserId, { isTrulyNew, isNewSnippetShare })
       } else {
-        // Generate new session-specific ID
+        // Generate new session-specific ID for joinee or standard code access
         const newUserId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36)
         userIdRef.current = newUserId
         sessionStorage.setItem('sessionUserId', newUserId)
@@ -80,7 +83,7 @@ const EditorPage: React.FC = () => {
         if (isTrulyNew) {
           localStorage.setItem('persistentUserId', newUserId)
         }
-        console.log('[EditorPage] Generated new userId:', newUserId, 'isTrulyNew:', isTrulyNew)
+        console.log('[EditorPage] Generated new userId:', newUserId, { isTrulyNew, isNewSnippetShare })
       }
     }
   }
@@ -194,16 +197,24 @@ const EditorPage: React.FC = () => {
         // Set resolvedSnippetId to 'new' to indicate this is a new snippet
         setResolvedSnippetId('new')
         
-        // IMPORTANT: Do NOT set snippetOwnerId here!
-        // For new-snippet URLs, ownership is determined by:
-        // 1. WebSocket activeUsers owner flag (when presence arrives) - HIGHEST PRIORITY
-        // 2. isOwner fallback logic: if (isNew && !directSnippetId && !tinyCode) for truly fresh snippets
-        // 
-        // Timing scenario:
-        // - Owner creates snippet (no tinyCode, no directSnippetId) → isNew=true, tinyCode=null → isOwner=true ✓
-        // - Owner shares: /join/new-snippet-XXXX
-        // - Joinee joins with that URL → isNew=true, tinyCode='new-snippet-XXXX' → isOwner=false ✓
-        // - WebSocket presence arrives with owner flag → sets snippetOwnerId correctly
+        // Check if this user is the creator by looking up stored creator info
+        // HomePage stores creator userId when creating new snippet
+        const creatorInfoStr = localStorage.getItem(`snippet-creator-${tinyCode}`)
+        if (creatorInfoStr) {
+          try {
+            const creatorInfo = JSON.parse(creatorInfoStr)
+            // If current userId matches creator userId, set ownership
+            if (creatorInfo.userId === userId) {
+              setSnippetOwnerId(userId)
+              console.log('[EditorPage] Identified as creator of new snippet:', tinyCode)
+            } else {
+              // Different userId - this is a joinee, don't set snippetOwnerId
+              console.log('[EditorPage] Joinee session - different creator detected')
+            }
+          } catch (e) {
+            logger.warn('Failed to parse creator info from localStorage')
+          }
+        }
         
         // Generate and set the shareable URL for the owner to share
         const shareableURL = generateShareableURL(tinyCode)
