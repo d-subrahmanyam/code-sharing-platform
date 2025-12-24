@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
 import { FiCode, FiTag, FiLock, FiEye, FiTrash2, FiSave, FiX, FiChevronLeft, FiChevronRight, FiEyeOff, FiShare2, FiCopy } from 'react-icons/fi'
@@ -18,15 +18,20 @@ import './EditorPage.css'
  * Main editor interface for viewing and editing code snippets with real-time collaboration
  * Supports loading snippets from:
  * - Direct snippet ID: /editor/:snippetId
- * - Tiny/Shortened URL: /join/:tinyCode
+ * - Owner session: /start/:tinyCode
+ * - Joinee session: /join/:tinyCode
  */
 const EditorPage: React.FC = () => {
   const { snippetId: directSnippetId, tinyCode } = useParams<{ snippetId?: string; tinyCode?: string }>()
+  const location = useLocation()
   const navigate = useNavigate()
   const dispatch = useDispatch()
   
+  // Determine if this is owner (/start) or joinee (/join) session
+  const isOwnerSession = location.pathname.startsWith('/start/')
+  
   // Debug logging
-  console.log('EditorPage loaded', { directSnippetId, tinyCode })
+  console.log('EditorPage loaded', { directSnippetId, tinyCode, isOwnerSession, pathname: location.pathname })
 
   const [resolvedSnippetId, setResolvedSnippetId] = useState<string | null>(directSnippetId || null)
   const [isResolving, setIsResolving] = useState(false)
@@ -90,8 +95,18 @@ const EditorPage: React.FC = () => {
   const userId = userIdRef.current
 
   // Determine if current user is owner
-  // Priority: WebSocket owner field > local snippetOwnerId comparison > new snippet logic
+  // Priority: URL route (/start) > WebSocket owner field > local snippetOwnerId > new snippet logic
   const isOwner = useMemo(() => {
+    // HIGHEST PRIORITY: Check URL route - /start indicates owner session
+    if (isOwnerSession) {
+      return true
+    }
+    
+    // If on /join route, definitely not owner
+    if (location.pathname.startsWith('/join/')) {
+      return false
+    }
+    
     // PRIMARY: Check WebSocket owner flag - highest priority when there are active users
     if (activeUsers.length > 0) {
       const activeUserOwner = activeUsers.find(u => u.owner)
@@ -117,7 +132,7 @@ const EditorPage: React.FC = () => {
     }
     
     return false
-  }, [activeUsers, userId, snippetOwnerId, isNew, directSnippetId, tinyCode])
+  }, [isOwnerSession, location.pathname, activeUsers, userId, snippetOwnerId, isNew, directSnippetId, tinyCode])
 
   // Debug logging for owner detection
   useEffect(() => {
@@ -193,26 +208,32 @@ const EditorPage: React.FC = () => {
       // Special handling for "new-snippet-XXXX" format (owner creating and sharing)
       // These indicate a newly created snippet being shared before it exists on backend
       if (tinyCode.startsWith('new-snippet-')) {
-        logger.debug('Detected new snippet share code', { tinyCode })
+        logger.debug('Detected new snippet share code', { tinyCode, isOwnerSession })
         // Set resolvedSnippetId to 'new' to indicate this is a new snippet
         setResolvedSnippetId('new')
         
-        // Check if this user is the creator by looking up stored creator info
-        // HomePage stores creator userId when creating new snippet
-        const creatorInfoStr = localStorage.getItem(`snippet-creator-${tinyCode}`)
-        if (creatorInfoStr) {
-          try {
-            const creatorInfo = JSON.parse(creatorInfoStr)
-            // If current userId matches creator userId, set ownership
-            if (creatorInfo.userId === userId) {
-              setSnippetOwnerId(userId)
-              console.log('[EditorPage] Identified as creator of new snippet:', tinyCode)
-            } else {
-              // Different userId - this is a joinee, don't set snippetOwnerId
-              console.log('[EditorPage] Joinee session - different creator detected')
+        // If accessing via /start route, user is definitely the owner
+        if (isOwnerSession) {
+          setSnippetOwnerId(userId)
+          console.log('[EditorPage] Owner session (/start route) - setting ownership immediately')
+        } else {
+          // For /join route, check if this user is the creator by looking up stored creator info
+          // HomePage stores creator userId when creating new snippet
+          const creatorInfoStr = localStorage.getItem(`snippet-creator-${tinyCode}`)
+          if (creatorInfoStr) {
+            try {
+              const creatorInfo = JSON.parse(creatorInfoStr)
+              // If current userId matches creator userId, set ownership (shouldn't happen on /join)
+              if (creatorInfo.userId === userId) {
+                setSnippetOwnerId(userId)
+                console.log('[EditorPage] Identified as creator of new snippet:', tinyCode)
+              } else {
+                // Different userId - this is a joinee, don't set snippetOwnerId
+                console.log('[EditorPage] Joinee session - different creator detected')
+              }
+            } catch (e) {
+              logger.warn('Failed to parse creator info from localStorage')
             }
-          } catch (e) {
-            logger.warn('Failed to parse creator info from localStorage')
           }
         }
         

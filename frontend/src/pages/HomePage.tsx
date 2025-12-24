@@ -83,7 +83,8 @@ const HomePage: React.FC = () => {
       localStorage.setItem(`snippet-creator-${newSnippetTinyCode}`, JSON.stringify({ userId, username }))
       
       logger.info('Creating new snippet with share URL', { tinyCode: newSnippetTinyCode, username, userId })
-      navigate(`/join/${newSnippetTinyCode}`)
+      // Owner creates snippet - navigate to start session
+      navigate(`/start/${newSnippetTinyCode}`)
       
       setPendingSnippetCreation(false)
     }
@@ -117,7 +118,7 @@ const HomePage: React.FC = () => {
     localStorage.setItem(`snippet-creator-${newSnippetTinyCode}`, JSON.stringify({ userId, username: defaultUsername }))
     
     logger.info('Creating new snippet with default username', { tinyCode: newSnippetTinyCode, username: defaultUsername, userId })
-    navigate(`/join/${newSnippetTinyCode}`)
+    navigate(`/start/${newSnippetTinyCode}`)
     
     setPendingSnippetCreation(false)
   }
