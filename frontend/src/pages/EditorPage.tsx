@@ -191,11 +191,19 @@ const EditorPage: React.FC = () => {
       // These indicate a newly created snippet being shared before it exists on backend
       if (tinyCode.startsWith('new-snippet-')) {
         logger.debug('Detected new snippet share code', { tinyCode })
-        // Owner is creating a new snippet and sharing it
         // Set resolvedSnippetId to 'new' to indicate this is a new snippet
         setResolvedSnippetId('new')
-        // Set the owner to the current user since they're creating it
-        setSnippetOwnerId(userId)
+        
+        // IMPORTANT: Do NOT set snippetOwnerId here!
+        // Only the session owner (John) should have snippetOwnerId set when he creates the snippet
+        // Joinees (Jane) should get snippetOwnerId from WebSocket activeUsers list
+        // If we set it here, both owner and joinee will have different userId values
+        // causing ownership confusion
+        
+        // Only set ownership if this is truly a fresh new snippet (not accessed via shared code)
+        if (!directSnippetId && !tinyCode.includes('new-snippet-')) {
+          setSnippetOwnerId(userId)
+        }
         
         // Generate and set the shareable URL for the owner to share
         const shareableURL = generateShareableURL(tinyCode)
@@ -358,8 +366,10 @@ const EditorPage: React.FC = () => {
           console.log('[WebSocket] Owner identified from presence update:', ownerUser.username)
         }
         
-        // Update snippet title if provided and we're a joinee
-        if (snippetTitle && !isOwner && !formData.title) {
+        // Update snippet title if provided from owner
+        // IMPORTANT: Always update title if snippet title provided, even if formData has a title
+        // This ensures joinee gets the correct title from owner
+        if (snippetTitle && snippetTitle !== 'Untitled Snippet') {
           console.log('[WebSocket] Updating snippet title from presence:', snippetTitle)
           setFormData(prev => ({
             ...prev,
@@ -386,9 +396,11 @@ const EditorPage: React.FC = () => {
         })
       }
       
-      if (timeSinceLastUpdate >= PRESENCE_DEBOUNCE_MS) {
-        // Enough time has passed, apply immediately
-        console.log('[WebSocket] Debounce: Applying immediately (', timeSinceLastUpdate, 'ms since last)')
+      // For initial presence update (when user just joined), process immediately
+      // For subsequent updates, debounce to reduce flickering
+      if (timeSinceLastUpdate === 0 || timeSinceLastUpdate >= PRESENCE_DEBOUNCE_MS) {
+        // First update or enough time has passed, apply immediately
+        console.log('[WebSocket] Debounce: Applying immediately (timeSinceLastUpdate:', timeSinceLastUpdate, 'ms)')
         processPresenceUpdate()
       } else {
         // Store for later and debounce
