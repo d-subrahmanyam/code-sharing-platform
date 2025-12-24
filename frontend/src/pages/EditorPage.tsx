@@ -187,10 +187,20 @@ const EditorPage: React.FC = () => {
   // Resolve tiny code to snippet ID on mount or when tinyCode changes
   useEffect(() => {
     if (tinyCode) {
-      // Don't treat "new-snippet-XXXX" as new snippets
-      // These are temporary share codes that need to be resolved to actual snippet IDs
-      // All tiny codes should go through the normal resolution flow
-      
+      // Special handling for "new-snippet-XXXX" format (owner creating and sharing)
+      // These indicate a newly created snippet being shared before it exists on backend
+      if (tinyCode.startsWith('new-snippet-')) {
+        logger.debug('Detected new snippet share code', { tinyCode })
+        // Owner is creating a new snippet and sharing it
+        // Set resolvedSnippetId to 'new' to indicate this is a new snippet
+        setResolvedSnippetId('new')
+        // Set the owner to the current user since they're creating it
+        setSnippetOwnerId(userId)
+        setIsResolving(false)
+        return
+      }
+
+      // Standard tiny code resolution for existing snippets
       if (isValidTinyCode(tinyCode)) {
         setIsResolving(true)
         setResolutionError(null)
