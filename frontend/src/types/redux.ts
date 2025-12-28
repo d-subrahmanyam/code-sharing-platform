@@ -32,10 +32,24 @@ export interface RegisterCredentials {
   confirmPassword: string
 }
 
+// Joinee Session Types
+export interface JoineeSessionState {
+  isLoading: boolean
+  error: string | null
+  ownerId: string | null
+  ownerUsername: string | null
+  title: string | null
+  code: string | null
+  language: string | null
+  tags: string[]
+  description: string | null
+}
+
 // Snippet Types
 export interface SnippetState {
   items: CodeSnippet[]
   currentSnippet: CodeSnippet | null
+  joineeSession: JoineeSessionState
   loading: boolean
   error: string | null
 }

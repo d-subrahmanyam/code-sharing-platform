@@ -1,6 +1,6 @@
 /**
  * Snippet Saga
- * Handles code snippet side effects (fetch, create, update, delete)
+ * Handles code snippet side effects (fetch, create, update, delete, joinee session)
  */
 import { call, put, takeEvery } from 'redux-saga/effects'
 import {
@@ -16,6 +16,9 @@ import {
   SNIPPET_DELETE_REQUEST,
   SNIPPET_DELETE_SUCCESS,
   SNIPPET_DELETE_FAILURE,
+  JOINEE_SESSION_LOAD_REQUEST,
+  JOINEE_SESSION_LOAD_SUCCESS,
+  JOINEE_SESSION_LOAD_FAILURE,
 } from '../actionTypes'
 import { graphqlQuery } from '@api/client'
 
@@ -230,6 +233,66 @@ function* deleteSnippetSaga(action: any) {
 }
 
 /**
+ * Load joinee session details saga worker function
+ * Fetches owner and snippet details when a joinee joins a session
+ * 
+ * For "new-snippet-*" sessions: Skips API call since no backend entry exists yet.
+ * Data will come via WebSocket from the owner.
+ * For regular tiny codes: Calls API to load full snippet details.
+ */
+function* loadJoineeSessionSaga(action: any) {
+  try {
+    const { tinyCode } = action.payload
+    
+    console.log('[Saga] Loading joinee session details for tinyCode:', tinyCode)
+    
+    // Special handling for "new-snippet-*" format
+    // These are temporary client-side codes for new snippets not yet in backend
+    // Owner's WebSocket messages will provide the data instead
+    if (tinyCode && tinyCode.startsWith('new-snippet-')) {
+      console.log('[Saga] Detected new-snippet session - waiting for WebSocket data from owner')
+      // Don't call API for new-snippet sessions - just dispatch success with minimal data
+      // The actual snippet data will come via WebSocket collaboration messages
+      yield put({
+        type: JOINEE_SESSION_LOAD_SUCCESS,
+        payload: {
+          snippetId: tinyCode,
+          tinyCode: tinyCode,
+          isNewSnippetSession: true,
+          waitingForOwnerData: true,
+        },
+      })
+      return
+    }
+    
+    // Call API to get owner and snippet details for real tiny codes
+    const response = yield call(
+      fetch,
+      `/api/snippets/lookup/${tinyCode}`
+    )
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load session details: ${response.statusText}`)
+    }
+    
+    const data = yield call(() => response.json())
+    
+    console.log('[Saga] Loaded joinee session data:', data)
+    
+    yield put({
+      type: JOINEE_SESSION_LOAD_SUCCESS,
+      payload: data,
+    })
+  } catch (error: any) {
+    console.error('[Saga] Error loading joinee session:', error)
+    yield put({
+      type: JOINEE_SESSION_LOAD_FAILURE,
+      payload: error.message || 'Failed to load session details',
+    })
+  }
+}
+
+/**
  * Snippet saga watcher
  */
 export default function* snippetSaga() {
@@ -237,4 +300,6 @@ export default function* snippetSaga() {
   yield takeEvery(SNIPPET_CREATE_REQUEST, createSnippetSaga)
   yield takeEvery(SNIPPET_UPDATE_REQUEST, updateSnippetSaga)
   yield takeEvery(SNIPPET_DELETE_REQUEST, deleteSnippetSaga)
+  yield takeEvery(JOINEE_SESSION_LOAD_REQUEST, loadJoineeSessionSaga)
 }
+

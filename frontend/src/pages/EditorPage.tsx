@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { SNIPPET_FETCH_REQUEST, SNIPPET_CREATE_REQUEST, SNIPPET_UPDATE_REQUEST } from '../store/actionTypes'
@@ -54,6 +54,10 @@ const EditorPage: React.FC = () => {
   const [currentUser] = useState(null) // In real app, get from Redux auth state
   const [usernameInput, setUsernameInput] = useState('')
   const [showUsernameDialog, setShowUsernameDialog] = useState(false)
+  
+  // Initialize flag: if username already in localStorage, consider it "entered"
+  const hasStoredUsername = localStorage.getItem('currentUsername') !== null
+  const [joineeUsernameEntered, setJoineeUsernameEntered] = useState(hasStoredUsername) // Track if joinee has entered their username
 
   // Stable userId ref for presence tracking
   // Use sessionStorage for unique session IDs (allows testing owner/joinee in same browser)
@@ -280,6 +284,55 @@ const EditorPage: React.FC = () => {
       console.log('[EditorPage] ✓ Snippet data fully loaded')
     }
   }, [snippet, isNew, userId])
+
+  // Load joinee session details when joinee joins
+  useEffect(() => {
+    if (isJoineeSession && tinyCode) {
+      console.log('[EditorPage] Joinee loading session details from API...', { tinyCode })
+      dispatch({
+        type: 'JOINEE_SESSION_LOAD_REQUEST',
+        payload: { tinyCode },
+      } as any)
+    }
+  }, [isJoineeSession, tinyCode, dispatch])
+
+  // Get joinee session data from Redux store
+  const joineeSession = useSelector((state: any) => state.snippet?.joineeSession)
+
+  // Apply loaded joinee session data to form
+  useEffect(() => {
+    if (joineeSession && !joineeSession.isLoading && joineeSession.title && joineeSession.code) {
+      console.log('[EditorPage] Applying joinee session data to form:', {
+        title: joineeSession.title,
+        ownerUsername: joineeSession.ownerUsername,
+      })
+      
+      setFormData({
+        title: joineeSession.title,
+        description: joineeSession.description || '',
+        code: joineeSession.code,
+        language: joineeSession.language || 'javascript',
+        tags: joineeSession.tags || [],
+        isPublic: true,
+      })
+      setSnippetOwnerId(joineeSession.ownerId)
+      setSnippetOwnerUsername(joineeSession.ownerUsername)
+    }
+  }, [joineeSession])
+
+  // Trigger state sync request for joinee sessions after username is entered
+  // This ensures joinee explicitly requests the current state from the owner
+  useEffect(() => {
+    if (isJoineeSession && tinyCode?.startsWith('new-snippet-') && joineeUsernameEntered && displayUsername) {
+      console.log('[EditorPage] Joinee username entered, state sync will be requested via WebSocket hook', {
+        snippetId: tinyCode,
+        username: displayUsername
+      })
+      
+      // The state sync will be requested by the WebSocket hook when it joins
+      // This effect ensures we have the username set before joining
+    }
+  }, [isJoineeSession, tinyCode, joineeUsernameEntered, displayUsername])
 
   // Use WebSocket for real-time collaboration
   const collaborationId = tinyCode || resolvedSnippetId
@@ -683,6 +736,7 @@ const EditorPage: React.FC = () => {
       localStorage.setItem('currentUsername', name)
       setDisplayUsername(name)
       setShowUsernameDialog(false)
+      setJoineeUsernameEntered(true) // Mark that joinee has entered username
       setUsernameInput('')
     }
   }
@@ -698,6 +752,7 @@ const EditorPage: React.FC = () => {
     localStorage.setItem('currentUsername', defaultName)
     setDisplayUsername(defaultName)
     setShowUsernameDialog(false)
+    setJoineeUsernameEntered(true) // Mark that joinee has entered username (skipped)
     setUsernameInput('')
   }
 
@@ -772,7 +827,7 @@ const EditorPage: React.FC = () => {
     <div className="min-h-screen bg-gray-900 dark:bg-black flex flex-col transition-colors">
       {/* Username Dialog */}
       {showUsernameDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
           <div className="bg-gray-800 dark:bg-gray-900 border-2 border-blue-500 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h2 className="text-2xl font-bold text-white mb-4">Enter Your Username</h2>
             <p className="text-gray-300 mb-6">Your username will be shown when you join a collaborative session</p>
@@ -812,6 +867,53 @@ const EditorPage: React.FC = () => {
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">Loading Snippet...</h2>
             <p className="text-gray-400">Please wait while we load the snippet content and metadata</p>
+          </div>
+        </div>
+      )}
+
+      {/* Joinee Session Loading Overlay - Shows when joinee joins and waiting for owner details */}
+      {isJoineeSession && joineeSession?.isLoading && !tinyCode?.startsWith('new-snippet-') && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+          <div className="bg-gray-800 rounded-lg p-8 text-center shadow-2xl">
+            <div className="mb-6">
+              <div className="animate-spin h-16 w-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto"></div>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Joining Session...</h2>
+            <p className="text-gray-300 mb-2">Waiting for owner details</p>
+            <p className="text-gray-500 text-sm">The owner will provide the code and metadata shortly</p>
+          </div>
+        </div>
+      )}
+
+      {/* Joinee Session Loading - For new-snippet sessions waiting for WebSocket data */}
+      {/* Only show for joinee route (/join/), NOT for owner route (/start/) */}
+      {/* Only show AFTER joinee has entered their username AND username dialog is hidden */}
+      {/* Show until EITHER the code OR title is updated by the owner */}
+      {isJoineeSession && tinyCode?.startsWith('new-snippet-') && joineeUsernameEntered && !showUsernameDialog && !formData.code && !formData.title && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+          <div className="bg-gray-800 rounded-lg p-8 text-center shadow-2xl">
+            <div className="mb-6">
+              <div className="animate-pulse h-16 w-16 border-4 border-purple-500 border-t-transparent rounded-full mx-auto"></div>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Connecting to Session...</h2>
+            <p className="text-gray-300 mb-2">Waiting for owner to share their code</p>
+            <p className="text-gray-500 text-sm">You'll see the code once they start typing</p>
+          </div>
+        </div>
+      )}
+
+      {/* Joinee Session Error - Only show for real tiny codes, not for new-snippet sessions */}
+      {isJoineeSession && joineeSession?.error && !tinyCode?.startsWith('new-snippet-') && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+          <div className="bg-gray-800 rounded-lg p-8 text-center shadow-2xl max-w-md">
+            <h2 className="text-2xl font-bold text-red-400 mb-4">Unable to Load Session</h2>
+            <p className="text-gray-300 mb-6">{joineeSession.error}</p>
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+            >
+              Go Home
+            </button>
           </div>
         </div>
       )}

@@ -211,6 +211,40 @@ public class CollaborationController {
   }
 
   /**
+   * Handle state sync request from joinee
+   * When a joinee joins, they request the current code and metadata from owner
+   * Message: /app/snippet/{snippetId}/sync-state
+   */
+  @MessageMapping("/snippet/{snippetId}/sync-state")
+  public void handleSyncStateRequest(
+    @DestinationVariable String snippetId,
+    @Payload Map<String, String> payload
+  ) {
+    String userId = payload.get("userId");
+    String username = payload.get("username");
+    
+    System.out.println("[Sync] User " + username + " (" + userId + ") requesting state sync for snippet " + snippetId);
+    
+    // In a real-time collaboration, the owner's state is in memory on the frontend.
+    // We send an empty state sync response, and the frontend will handle broadcasting
+    // the owner's current state when they receive this request.
+    // This is a signal that says "a new user joined, send them your current state"
+    
+    Map<String, Object> syncMessage = new HashMap<>();
+    syncMessage.put("type", "state-sync-request");
+    syncMessage.put("requesterId", userId);
+    syncMessage.put("requesterUsername", username);
+    syncMessage.put("timestamp", System.currentTimeMillis());
+    
+    messagingTemplate.convertAndSend(
+      "/topic/snippet/" + snippetId + "/sync",
+      syncMessage
+    );
+    
+    System.out.println("[Sync] Broadcasted sync request from " + username + " to all subscribers");
+  }
+
+  /**
    * Message types for WebSocket communication
    */
   public static class PresenceMessage {

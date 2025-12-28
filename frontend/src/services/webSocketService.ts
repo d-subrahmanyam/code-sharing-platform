@@ -258,6 +258,30 @@ export class WebSocketService {
   }
 
   /**
+   * Request state sync from owner (called by joinee)
+   * This tells the owner to broadcast their current code and metadata state
+   */
+  requestStateSync(snippetId: string, userId: string, username: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const destination = `/app/snippet/${snippetId}/sync-state`
+        const payload = { userId, username, timestamp: Date.now() }
+        console.log('[WebSocketService.requestStateSync] Requesting state for:', snippetId, 'from:', username)
+        this.stompClient!.send(
+          destination,
+          {},
+          JSON.stringify(payload)
+        )
+        console.log('[WebSocketService.requestStateSync] ✓ Sent')
+        resolve()
+      } catch (error) {
+        console.error('[WebSocketService.requestStateSync] ✗ Error:', error)
+        reject(error)
+      }
+    })
+  }
+
+  /**
    * Subscribe to presence updates
    */
   subscribeToPresence(
@@ -343,6 +367,30 @@ export class WebSocketService {
           callback(data)
         } catch (error) {
           console.error('Error parsing metadata update message:', error)
+        }
+      })
+      this.subscriptions.set(topic, subscription)
+    })
+  }
+
+  /**
+   * Subscribe to state sync requests/responses
+   * Used to coordinate state synchronization between owner and joinee
+   */
+  subscribeToStateSync(
+    snippetId: string,
+    callback: WebSocketCallback<any>
+  ): void {
+    const topic = `/topic/snippet/${snippetId}/sync`
+    this.unsubscribeFromTopic(topic)
+
+    this.ensureConnected().then(() => {
+      const subscription = this.stompClient!.subscribe(topic, (message) => {
+        try {
+          const data = JSON.parse(message.body)
+          callback(data)
+        } catch (error) {
+          console.error('Error parsing state sync message:', error)
         }
       })
       this.subscriptions.set(topic, subscription)

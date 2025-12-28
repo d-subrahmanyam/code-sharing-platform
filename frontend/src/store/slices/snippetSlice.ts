@@ -16,12 +16,27 @@ import {
   SNIPPET_DELETE_SUCCESS,
   SNIPPET_DELETE_FAILURE,
   SNIPPET_SET_TITLE_FROM_OWNER,
+  JOINEE_SESSION_LOAD_REQUEST,
+  JOINEE_SESSION_LOAD_SUCCESS,
+  JOINEE_SESSION_LOAD_FAILURE,
+  JOINEE_SESSION_CLEAR,
 } from '../actionTypes'
 import type { SnippetState } from '../../types/redux'
 
 const initialState: SnippetState = {
   items: [],
   currentSnippet: null,
+  joineeSession: {
+    isLoading: false,
+    error: null,
+    ownerId: null,
+    ownerUsername: null,
+    title: null,
+    code: null,
+    language: null,
+    tags: [],
+    description: null,
+  },
   loading: false,
   error: null,
 }
@@ -87,6 +102,59 @@ export default function snippetReducer(
             }
           : null,
         loading: false,
+      }
+
+    // Joinee session actions
+    case JOINEE_SESSION_LOAD_REQUEST:
+      return {
+        ...state,
+        joineeSession: {
+          ...state.joineeSession,
+          isLoading: true,
+          error: null,
+        },
+      }
+
+    case JOINEE_SESSION_LOAD_SUCCESS:
+      return {
+        ...state,
+        joineeSession: {
+          isLoading: action.payload.isNewSnippetSession ? false : false,
+          error: null,
+          ownerId: action.payload.ownerId || null,
+          ownerUsername: action.payload.ownerUsername || null,
+          title: action.payload.title || null,
+          code: action.payload.code || null,
+          language: action.payload.language || null,
+          tags: action.payload.tags || [],
+          description: action.payload.description || null,
+        },
+      }
+
+    case JOINEE_SESSION_LOAD_FAILURE:
+      return {
+        ...state,
+        joineeSession: {
+          ...state.joineeSession,
+          isLoading: false,
+          error: action.payload,
+        },
+      }
+
+    case JOINEE_SESSION_CLEAR:
+      return {
+        ...state,
+        joineeSession: {
+          isLoading: false,
+          error: null,
+          ownerId: null,
+          ownerUsername: null,
+          title: null,
+          code: null,
+          language: null,
+          tags: [],
+          description: null,
+        },
       }
 
     case SNIPPET_FETCH_FAILURE:

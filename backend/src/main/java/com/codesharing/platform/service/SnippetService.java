@@ -142,13 +142,13 @@ public class SnippetService {
     }
 
     /**
-     * Get owner details by tiny code
-     * Returns owner user ID and username
+     * Get owner and snippet details by tiny code
+     * Returns owner user ID, username, and full snippet details (title, code, language, tags, description)
      *
      * @param tinyCode The 6-character tiny code
-     * @return Map with snippetId, ownerId, and ownerUsername, or null if not found
+     * @return Map with snippetId, ownerId, ownerUsername, and snippet details, or null if not found
      */
-    public Map<String, String> getOwnerDetailsByTinyCode(String tinyCode) {
+    public Map<String, Object> getOwnerDetailsByTinyCode(String tinyCode) {
         try {
             var tinyUrl = tinyUrlRepository.findByShortCode(tinyCode);
             
@@ -166,11 +166,23 @@ public class SnippetService {
                     ownerUsername = user.get().getUsername();
                 }
                 
-                Map<String, String> result = new HashMap<>();
+                // Get snippet details
+                CodeSnippet snippet = mongoTemplate.findById(url.getSnippetId(), CodeSnippet.class);
+                
+                Map<String, Object> result = new HashMap<>();
                 result.put("snippetId", url.getSnippetId());
                 result.put("ownerId", url.getUserId());
                 result.put("ownerUsername", ownerUsername != null ? ownerUsername : "Unknown");
                 result.put("tinyCode", tinyCode);
+                
+                // Add full snippet details
+                if (snippet != null) {
+                    result.put("title", snippet.getTitle() != null ? snippet.getTitle() : "");
+                    result.put("description", snippet.getDescription() != null ? snippet.getDescription() : "");
+                    result.put("code", snippet.getCode() != null ? snippet.getCode() : "");
+                    result.put("language", snippet.getLanguage() != null ? snippet.getLanguage() : "javascript");
+                    result.put("tags", snippet.getTags() != null ? snippet.getTags() : new ArrayList<>());
+                }
                 
                 return result;
             }

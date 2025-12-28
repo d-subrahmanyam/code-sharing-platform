@@ -19,7 +19,8 @@ export function useWebSocketCollaboration(
   onPresenceUpdate: (users: UserPresence[], snippetTitle?: string, presenceMessage?: PresenceMessage) => void,
   onCodeChange: (change: CodeChangeMessage) => void,
   onTypingUpdate: (typingUsers: Array<{ userId: string; username: string }>) => void,
-  onMetadataUpdate?: (metadata: any) => void
+  onMetadataUpdate?: (metadata: any) => void,
+  onStateSync?: (syncMessage: any) => void
 ) {
   const hasJoinedRef = useRef<boolean>(false)
   const isConnectedRef = useRef<boolean>(false)
@@ -127,12 +128,31 @@ export function useWebSocketCollaboration(
           onTypingUpdate(status.typingUsers)
         })
 
+        // Subscribe to state sync messages (for joinee pulling current state from owner)
+        webSocketService.subscribeToStateSync(snippetId, (syncMessage: any) => {
+          console.log('[useWebSocketCollaboration] State sync message received:', syncMessage)
+          // Pass to the callback handler if provided
+          if (onStateSync) {
+            onStateSync(syncMessage)
+          }
+        })
+
         // Subscribe to metadata updates
         if (onMetadataUpdate) {
           webSocketService.subscribeToMetadataUpdates(snippetId, (metadata: any) => {
             console.log('[useWebSocketCollaboration] Metadata update:', metadata)
             onMetadataUpdate(metadata)
           })
+        }
+
+        // Request state sync from owner - this ensures joinee gets the current state
+        // even if the owner has already made changes before the joinee connected
+        console.log(`[useWebSocketCollaboration] Requesting state sync for ${snippetId}`)
+        try {
+          await webSocketService.requestStateSync(snippetId, userId, username)
+          console.log(`[useWebSocketCollaboration] ✓ State sync requested`)
+        } catch (error) {
+          console.error('[useWebSocketCollaboration] Error requesting state sync:', error)
         }
       } catch (error) {
         console.error('[useWebSocketCollaboration] Error joining snippet:', error)

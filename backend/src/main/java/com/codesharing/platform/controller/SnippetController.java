@@ -104,15 +104,15 @@ class SnippetSharingController {
     }
 
     /**
-     * Lookup snippet by tiny code
-     * Resolves a short code to the actual snippet ID
+     * Lookup snippet and owner details by tiny code
+     * Resolves a short code to the actual snippet ID and returns full snippet details
      *
      * @param tinyCode The 6-character tiny code (e.g., "ABC123")
-     * @return ResponseEntity with snippetId or 404 if not found
+     * @return ResponseEntity with snippetId, ownerId, ownerUsername, and full snippet details
      */
     @GetMapping("/lookup/{tinyCode}")
-    public ResponseEntity<Map<String, String>> lookupByTinyCode(@PathVariable String tinyCode) {
-        Map<String, String> ownerDetails = snippetService.getOwnerDetailsByTinyCode(tinyCode);
+    public ResponseEntity<Map<String, Object>> lookupByTinyCode(@PathVariable String tinyCode) {
+        Map<String, Object> ownerDetails = snippetService.getOwnerDetailsByTinyCode(tinyCode);
 
         if (ownerDetails == null) {
             return ResponseEntity.notFound().build();
