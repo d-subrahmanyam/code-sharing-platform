@@ -21,8 +21,17 @@ import './EditorPage.css'
  * - Direct snippet ID: /editor/:snippetId
  * - Owner session: /start/:tinyCode
  * - Joinee session: /join/:tinyCode
+ * 
+ * Can be used in owner or joinee context via isOwnerFlow/isJoineeFlow props
  */
-const EditorPage: React.FC = () => {
+interface EditorPageProps {
+  isOwnerFlow?: boolean
+  isJoineeFlow?: boolean
+  snippetId?: string
+  tinyCode?: string
+}
+
+const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFlow = false }) => {
   const { snippetId: directSnippetId, tinyCode } = useParams<{ snippetId?: string; tinyCode?: string }>()
   const location = useLocation()
   const navigate = useNavigate()

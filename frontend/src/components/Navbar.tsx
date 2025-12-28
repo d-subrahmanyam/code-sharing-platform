@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { AUTH_LOGOUT } from '../store/actionTypes'
 import { ThemeToggle } from './ThemeToggle'
@@ -20,12 +20,17 @@ import {
 /**
  * Navigation Bar Component
  * Main navigation with user menu and authentication
+ * Hides login/signup buttons when in joinee session
  */
 const Navbar: React.FC = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  const location = useLocation()
   const [showMenu, setShowMenu] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
+
+  // Check if we're in a joinee session
+  const isJoineeSession = location.pathname.startsWith('/join/')
 
   // Get auth state from Redux
   const { isAuthenticated, user } = useSelector((state: any) => state.auth || {})
@@ -129,18 +134,23 @@ const Navbar: React.FC = () => {
               </>
             ) : (
               <>
-                <button
-                  onClick={() => navigate('/login')}
-                  className="hidden md:block px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => navigate('/login')}
-                  className="hidden md:block px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Sign Up
-              </button>
+                {/* Only show login/signup buttons if NOT in joinee session */}
+                {!isJoineeSession && (
+                  <>
+                    <button
+                      onClick={() => navigate('/login')}
+                      className="hidden md:block px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      Login
+                    </button>
+                    <button
+                      onClick={() => navigate('/login')}
+                      className="hidden md:block px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Sign Up
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => setShowSidebar(!showSidebar)}
                   className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"

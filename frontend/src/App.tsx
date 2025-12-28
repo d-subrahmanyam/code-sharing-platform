@@ -5,6 +5,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import HomePage from './pages/HomePage'
 import EditorPage from './pages/EditorPage'
+import OwnerEditorPage from './pages/OwnerEditorPage'
+import JoineeEditorPage from './pages/JoineeEditorPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 import Navbar from './components/Navbar'
@@ -17,7 +19,7 @@ import Footer from './components/Footer'
  * - Redux store provider for state management
  * - Theme provider for light/dark mode support
  * - React Router for navigation
- * - Main application routes
+ * - Main application routes with separated owner/joinee flows
  */
 function App() {
   return (
@@ -29,9 +31,9 @@ function App() {
             <main className="flex-1">
               <Routes>
                 <Route path="/" element={<HomePage />} />
-                <Route path="/editor/:snippetId" element={<EditorPage />} />
-                <Route path="/start/:tinyCode" element={<EditorPage />} />
-                <Route path="/join/:tinyCode" element={<EditorPage />} />
+                <Route path="/editor/:snippetId" element={<OwnerEditorPage />} />
+                <Route path="/start/:tinyCode" element={<OwnerEditorPage />} />
+                <Route path="/join/:tinyCode" element={<JoineeEditorPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
