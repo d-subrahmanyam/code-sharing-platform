@@ -12,6 +12,10 @@ import { ActiveUsers, type ActiveUser } from '../components/ActiveUsers'
 import { UserJoinBubble } from '../components/UserJoinBubble'
 import { useWebSocketCollaboration } from '../hooks/useWebSocketCollaboration'
 import { useOwnerJoineeSession } from '../hooks/useOwnerJoineeSession'
+import { useEditorLock } from '../hooks/useEditorLock'
+import { setupSecurityListeners } from '../utils/editorSecurity'
+import { EditorLockControl } from '../components/EditorLockControl'
+import { SecurityEventsViewer } from '../components/SecurityEventsViewer'
 import './EditorPage.css'
 
 /**
@@ -63,6 +67,7 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
   const [currentUser] = useState(null) // In real app, get from Redux auth state
   const [usernameInput, setUsernameInput] = useState('')
   const [showUsernameDialog, setShowUsernameDialog] = useState(false)
+  const [joineeReceivedInitialContent, setJoineeReceivedInitialContent] = useState(false) // Track if joinee received initial code/title from owner
   
   // Initialize flag: if username already in localStorage, consider it "entered"
   const hasStoredUsername = localStorage.getItem('currentUsername') !== null
@@ -113,6 +118,7 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
     isNew,
     directSnippetId,
     tinyCode,
+    isOwnerFlow,
   })
 
   // Set owner ID for truly new snippets (not shared via code)
@@ -354,6 +360,7 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
     collaborationId,
     userId,
     displayUsername,
+    isOwner, // Pass isOwner to hook for conditional security event subscription
     (users, snippetTitle, presenceMessage) => {
       console.log('[WebSocket] ===== PRESENCE UPDATE RECEIVED =====')
       console.log('[WebSocket] Snippet Title from presence:', snippetTitle)
@@ -458,6 +465,12 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
             return updated ? newFormData : prev
           })
           
+          // If owner has metadata, mark that joinee has received initial content
+          if (presenceMessage.ownerTitle || presenceMessage.ownerDescription || presenceMessage.ownerLanguage || presenceMessage.ownerTags) {
+            console.log('[WebSocket] Setting joineeReceivedInitialContent to true (owner metadata from presence)')
+            setJoineeReceivedInitialContent(true)
+          }
+          
           // Also dispatch to Redux store for persistence
           if (presenceMessage.ownerTitle) {
             dispatch({
@@ -522,6 +535,9 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
           code: change.code,
           language: change.language,
         }))
+        // Mark that joinee has received initial content
+        console.log('[WebSocket] Setting joineeReceivedInitialContent to true (code received)')
+        setJoineeReceivedInitialContent(true)
       } else {
         console.log('[WebSocket] ✗ Ignoring own code change')
       }
@@ -553,6 +569,9 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
           language: metadata.language !== undefined ? metadata.language : prev.language,
           tags: metadata.tags !== undefined ? metadata.tags : prev.tags,
         }))
+        // Mark that joinee has received initial content
+        console.log('[WebSocket] Setting joineeReceivedInitialContent to true (metadata received)')
+        setJoineeReceivedInitialContent(true)
         // Update Redux store with title from owner
         if (metadata.title !== undefined) {
           dispatch({
@@ -566,8 +585,104 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
       } else {
         console.log('[WebSocket] ✗ Ignoring own metadata change')
       }
+    },
+    undefined, // onStateSync - not used
+    (event) => {
+      // Security event handler for copy/paste attempts
+      // NOTE: This callback is only registered for owner sessions, so isOwner will always be true here
+      console.log('[EditorPage] 🎯 onSecurityEvent CALLBACK INVOKED')
+      console.log('[EditorPage] Received WebSocket message:', event)
+      console.log('[EditorPage] event type:', event.type)
+      console.log('[EditorPage] event eventType:', event.eventType)
+      console.log('[EditorPage] event username:', event.username)
+      
+      if (event.type === 'SECURITY_EVENT') {
+        console.log('[WebSocket] ✓ Security event received for owner, showing toast')
+        // Show toast notification to owner
+        const message = event.message || `${event.username} attempted ${event.eventType.toLowerCase()}`
+        console.log('[Security] Toast notification:', message)
+        
+        // Show toast - using a simple alert for now, can be replaced with toast library
+        const toastId = `security-${Date.now()}`
+        setSecurityAlerts(prev => [...prev, {
+          id: toastId,
+          message,
+          username: event.username,
+          eventType: event.eventType,
+          timestamp: new Date(),
+        }])
+        
+        // Auto-remove toast after 4 seconds
+        setTimeout(() => {
+          setSecurityAlerts(prev => prev.filter(a => a.id !== toastId))
+        }, 4000)
+      }
     }
   )
+
+  // State for security alerts
+  const [securityAlerts, setSecurityAlerts] = useState<Array<{
+    id: string
+    message: string
+    username: string
+    eventType: string
+    timestamp: Date
+  }>>([])
+
+
+  // Editor lock state and security event tracking
+  const {
+    isLocked,
+    lockReason,
+    lockedAt,
+    lockEditor,
+    unlockEditor,
+    recordSecurityEvent,
+    pendingSecurityEvents,
+  } = useEditorLock(
+    collaborationId || 'unknown',  // Use collaborationId (same as WebSocket topic ID) to ensure security events are sent to correct topic
+    collaborationId || 'unknown',
+    userId || 'unknown',
+    isOwner
+  )
+
+  // State for security events viewer modal
+  const [showSecurityEvents, setShowSecurityEvents] = useState(false)
+
+  // Setup security listeners for joinee sessions to prevent copy/paste
+  const editorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!editorRef.current || !isJoineeSession) {
+      return
+    }
+
+    // Setup listeners for copy/paste prevention
+    // For joinee sessions, always restrict copy/paste operations
+    const cleanup = setupSecurityListeners(
+      editorRef.current as HTMLElement,
+      true, // Always true for joinee to prevent copy/paste
+      recordSecurityEvent
+    )
+
+    return cleanup
+  }, [isJoineeSession, recordSecurityEvent])
+
+  // Debug: Log overlay condition state for joinee session loading overlay
+  useEffect(() => {
+    if (isJoineeSession && tinyCode?.startsWith('new-snippet-')) {
+      console.log('[EditorPage] Joinee loading overlay state:', {
+        isJoineeSession,
+        tinyCodeStartsWithNewSnippet: tinyCode?.startsWith('new-snippet-'),
+        joineeUsernameEntered,
+        showUsernameDialog,
+        joineeReceivedInitialContent,
+        hasCode: !!formData.code,
+        hasTitle: !!formData.title,
+        shouldShowOverlay: !joineeReceivedInitialContent,
+        formData: { code: formData.code?.substring(0, 50), title: formData.title }
+      })
+    }
+  }, [isJoineeSession, tinyCode, joineeUsernameEntered, showUsernameDialog, joineeReceivedInitialContent, formData.code, formData.title])
 
   // Debounce code changes for auto-save
   const codeChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -897,8 +1012,8 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
       {/* Joinee Session Loading - For new-snippet sessions waiting for WebSocket data */}
       {/* Only show for joinee route (/join/), NOT for owner route (/start/) */}
       {/* Only show AFTER joinee has entered their username AND username dialog is hidden */}
-      {/* Show until EITHER the code OR title is updated by the owner */}
-      {isJoineeSession && tinyCode?.startsWith('new-snippet-') && joineeUsernameEntered && !showUsernameDialog && !formData.code && !formData.title && (
+      {/* Hide once we've received initial content (code or title) from the owner */}
+      {isJoineeSession && tinyCode?.startsWith('new-snippet-') && joineeUsernameEntered && !showUsernameDialog && !joineeReceivedInitialContent && (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
           <div className="bg-gray-800 rounded-lg p-8 text-center shadow-2xl">
             <div className="mb-6">
@@ -1256,6 +1371,21 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
             </button>
           </div>
 
+          {/* Editor Lock Status and Controls */}
+          {isJoineeSession && (
+            <EditorLockControl
+              isLocked={isLocked}
+              lockReason={lockReason}
+              isOwner={isOwner}
+              isJoineeSession={isJoineeSession}
+              isLoading={false}
+              pendingEvents={pendingSecurityEvents.length}
+              onLock={(reason) => lockEditor(reason)}
+              onUnlock={() => unlockEditor()}
+              onViewEvents={() => setShowSecurityEvents(true)}
+            />
+          )}
+
           {/* Editor / Preview Content */}
           <div className="flex-1 overflow-hidden">
             {!showPreview ? (
@@ -1266,10 +1396,17 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
                     <div key={i}>{i + 1}</div>
                   ))}
                 </div>
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 overflow-auto" ref={editorRef}>
                   <Editor
                     value={formData.code}
-                    onValueChange={handleCodeChange}
+                    onValueChange={(code) => {
+                      // Prevent code changes if editor is locked
+                      if (isJoineeSession && isLocked) {
+                        recordSecurityEvent('EDIT_ATTEMPT')
+                        return
+                      }
+                      handleCodeChange(code)
+                    }}
                     highlight={(code) => {
                       const languageMap: { [key: string]: string } = {
                         'javascript': 'javascript',
@@ -1357,6 +1494,17 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
         </div>
       )}
 
+      {/* Security Event Alerts - Notify owner of copy/paste attempts */}
+      {securityAlerts.map((alert) => (
+        <div
+          key={alert.id}
+          className="fixed bottom-6 right-6 bg-red-600 text-white rounded-lg px-4 py-3 shadow-lg z-50 animate-pulse border-l-4 border-red-900"
+        >
+          <div className="font-semibold">{alert.message}</div>
+          <div className="text-sm text-red-100">🔒 Restricted action by {alert.username}</div>
+        </div>
+      ))}
+
       {/* Typing Indicator - Show who is typing */}
       {typingUsers.length > 0 && (
         <div className="fixed top-40 right-6 bg-purple-900 border border-purple-700 rounded-lg px-4 py-2 text-purple-100 text-xs pointer-events-auto z-40">
@@ -1373,6 +1521,26 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
           </div>
         </div>
       )}
+
+      {/* Security Events Viewer Modal */}
+      <SecurityEventsViewer
+        events={pendingSecurityEvents.map((event: any) => ({
+          id: event.id,
+          userId: event.userId,
+          userUsername: event.userUsername || 'Unknown User',
+          eventType: event.eventType,
+          eventDescription: event.eventDescription || event.eventType,
+          isPrevented: event.isPrevented,
+          createdAt: event.createdAt,
+          ownerNotified: event.ownerNotified,
+        }))}
+        isOpen={showSecurityEvents}
+        onClose={() => setShowSecurityEvents(false)}
+        onMarkNotified={(eventId) => {
+          // API call to mark as notified would go here
+          console.log('[EditorPage] Marking event as notified:', eventId)
+        }}
+      />
     </div>
   )
 }
