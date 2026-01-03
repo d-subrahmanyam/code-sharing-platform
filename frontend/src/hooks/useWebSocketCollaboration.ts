@@ -16,11 +16,13 @@ export function useWebSocketCollaboration(
   snippetId: string | null | undefined,
   userId: string,
   username: string | null,
+  isOwner: boolean, // Add isOwner parameter to conditionally subscribe to security events
   onPresenceUpdate: (users: UserPresence[], snippetTitle?: string, presenceMessage?: PresenceMessage) => void,
   onCodeChange: (change: CodeChangeMessage) => void,
   onTypingUpdate: (typingUsers: Array<{ userId: string; username: string }>) => void,
   onMetadataUpdate?: (metadata: any) => void,
-  onStateSync?: (syncMessage: any) => void
+  onStateSync?: (syncMessage: any) => void,
+  onSecurityEvent?: (event: any) => void
 ) {
   const hasJoinedRef = useRef<boolean>(false)
   const isConnectedRef = useRef<boolean>(false)
@@ -145,6 +147,30 @@ export function useWebSocketCollaboration(
           })
         }
 
+        // Subscribe to security events (copy/paste attempts)
+        // Only owner sessions should subscribe to receive security event notifications
+        console.log('[useWebSocketCollaboration] Checking if owner and onSecurityEvent callback provided:', { isOwner, hasCallback: !!onSecurityEvent })
+        if (isOwner && onSecurityEvent) {
+          console.log('[useWebSocketCollaboration] ✓ Owner session - setting up security event subscription for snippetId:', snippetId)
+          webSocketService.subscribeToSecurityEvents(snippetId, (event: any) => {
+            console.log('[useWebSocketCollaboration] ✓✓ Security event callback INVOKED with event:', event)
+            console.log('[useWebSocketCollaboration] About to call onSecurityEvent handler')
+            try {
+              onSecurityEvent(event)
+              console.log('[useWebSocketCollaboration] ✓✓✓ Successfully called onSecurityEvent handler')
+            } catch (error) {
+              console.error('[useWebSocketCollaboration] ✗ Error calling onSecurityEvent handler:', error)
+            }
+          })
+          console.log('[useWebSocketCollaboration] ✓ Subscription request sent to webSocketService')
+        } else {
+          if (!isOwner) {
+            console.log('[useWebSocketCollaboration] ✗ Joinee session - skipping security event subscription (only owner receives these)')
+          } else if (!onSecurityEvent) {
+            console.log('[useWebSocketCollaboration] ✗ onSecurityEvent callback is NOT provided, skipping subscription')
+          }
+        }
+
         // Request state sync from owner - this ensures joinee gets the current state
         // even if the owner has already made changes before the joinee connected
         console.log(`[useWebSocketCollaboration] Requesting state sync for ${snippetId}`)
@@ -172,7 +198,7 @@ export function useWebSocketCollaboration(
         hasJoinedRef.current = false
       }
     }
-  }, [snippetId, userId, username, onPresenceUpdate, onCodeChange, onTypingUpdate, onMetadataUpdate])
+  }, [snippetId, userId, username, isOwner, onPresenceUpdate, onCodeChange, onTypingUpdate, onMetadataUpdate, onSecurityEvent])
 
   // Send code change
   const sendCodeChange = useCallback(

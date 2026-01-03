@@ -35,7 +35,7 @@ public class AuthService {
         }
 
         String token = generateToken(user.getId());
-        UserDTO userDTO = new UserDTO(user.getId(), user.getUsername(), user.getEmail());
+        UserDTO userDTO = new UserDTO(user.getId(), user.getUsername(), user.getEmail(), user.getRole().getValue());
         
         return new AuthPayload(token, userDTO, true, "Login successful");
     }
@@ -64,7 +64,7 @@ public class AuthService {
         userRepository.save(user);
 
         String token = generateToken(user.getId());
-        UserDTO userDTO = new UserDTO(user.getId(), user.getUsername(), user.getEmail());
+        UserDTO userDTO = new UserDTO(user.getId(), user.getUsername(), user.getEmail(), user.getRole().getValue());
         
         return new AuthPayload(token, userDTO, true, "Registration successful");
     }

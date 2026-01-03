@@ -39,6 +39,10 @@ public class User {
     
     private String bio;
     
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20) DEFAULT 'USER'")
+    private UserRole role = UserRole.USER;
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
