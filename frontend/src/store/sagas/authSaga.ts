@@ -22,6 +22,7 @@ const LOGIN_MUTATION = `
         id
         username
         email
+        role
       }
       success
       message
@@ -37,6 +38,7 @@ const REGISTER_MUTATION = `
         id
         username
         email
+        role
       }
       success
       message
