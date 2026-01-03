@@ -11,7 +11,7 @@ import { FiMail, FiLock, FiUser, FiAlertCircle, FiCheckCircle } from 'react-icon
 const LoginPage: React.FC = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { isAuthenticated } = useSelector((state: any) => state.auth || {})
+  const { isAuthenticated, user } = useSelector((state: any) => state.auth || {})
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,11 +24,15 @@ const LoginPage: React.FC = () => {
 
   // Watch for successful login and redirect
   useEffect(() => {
-    if (isAuthenticated) {
-      // Redirect to home (admin routing can be added later if roles are implemented)
-      navigate('/')
+    if (isAuthenticated && user) {
+      // Redirect to admin dashboard if user is admin, otherwise home
+      if (user.role === 'ADMIN') {
+        navigate('/admin')
+      } else {
+        navigate('/')
+      }
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, user, navigate])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
