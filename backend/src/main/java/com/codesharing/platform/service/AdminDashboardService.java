@@ -99,6 +99,7 @@ public class AdminDashboardService {
     
     /**
      * Track participant in session
+     * Checks if participant already exists and updates, or creates new participant if first time joining
      */
     @Transactional
     public ParticipantSession addParticipant(SessionHistory session, String userId, String username,
@@ -106,28 +107,41 @@ public class AdminDashboardService {
                                              String ipAddress, String userAgent,
                                              String browserName, String browserVersion,
                                              String osName, String osVersion) {
-        ParticipantSession participant = ParticipantSession.builder()
-            .sessionHistory(session)
-            .userId(userId)
-            .username(username)
-            .isOwner(isOwner)
-            .isAnonymous(isAnonymous)
-            .ipAddress(ipAddress)
-            .userAgent(userAgent)
-            .browserName(browserName)
-            .browserVersion(browserVersion)
-            .osName(osName)
-            .osVersion(osVersion)
-            .joinedAt(LocalDateTime.now())
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
+        // Check if participant already exists in this session
+        Optional<ParticipantSession> existingParticipant = participantSessionRepository.findBySessionHistoryAndUserId(session, userId);
         
-        // Update participant count
-        session.setParticipantCount(session.getParticipantCount() + 1);
-        sessionHistoryRepository.save(session);
-        
-        return participantSessionRepository.save(participant);
+        if (existingParticipant.isPresent()) {
+            // Participant is re-joining - update their record
+            ParticipantSession participant = existingParticipant.get();
+            participant.setJoinedAt(LocalDateTime.now());
+            participant.setLeftAt(null); // Clear left time since they're joining again
+            participant.setUpdatedAt(LocalDateTime.now());
+            return participantSessionRepository.save(participant);
+        } else {
+            // New participant - create record and increment count
+            ParticipantSession participant = ParticipantSession.builder()
+                .sessionHistory(session)
+                .userId(userId)
+                .username(username)
+                .isOwner(isOwner)
+                .isAnonymous(isAnonymous)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .browserName(browserName)
+                .browserVersion(browserVersion)
+                .osName(osName)
+                .osVersion(osVersion)
+                .joinedAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+            
+            // Only increment participant count for NEW participants
+            session.setParticipantCount(session.getParticipantCount() + 1);
+            sessionHistoryRepository.save(session);
+            
+            return participantSessionRepository.save(participant);
+        }
     }
     
     /**

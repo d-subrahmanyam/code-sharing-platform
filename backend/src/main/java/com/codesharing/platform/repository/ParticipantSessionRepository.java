@@ -28,6 +28,11 @@ public interface ParticipantSessionRepository extends JpaRepository<ParticipantS
     Optional<ParticipantSession> findBySessionHistoryAndIsOwner(SessionHistory sessionHistory, Boolean isOwner);
     
     /**
+     * Find a specific participant by session and user ID
+     */
+    Optional<ParticipantSession> findBySessionHistoryAndUserId(SessionHistory sessionHistory, String userId);
+    
+    /**
      * Find all participants by user ID
      */
     List<ParticipantSession> findByUserId(String userId);
