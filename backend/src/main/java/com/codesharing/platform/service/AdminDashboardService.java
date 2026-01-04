@@ -74,6 +74,7 @@ public class AdminDashboardService {
     /**
      * Create a new session history entry
      * Called when a new collaboration session starts
+     * Also creates a ParticipantSession record for the owner
      */
     @Transactional
     public SessionHistory createSession(String snippetId, String ownerId, String ownerUsername, 
@@ -94,7 +95,29 @@ public class AdminDashboardService {
             .updatedAt(LocalDateTime.now())
             .build();
         
-        return sessionHistoryRepository.save(session);
+        SessionHistory savedSession = sessionHistoryRepository.save(session);
+        
+        // Create ParticipantSession record for the owner
+        ParticipantSession ownerParticipant = ParticipantSession.builder()
+            .sessionHistory(savedSession)
+            .userId(ownerId)
+            .username(ownerUsername)
+            .isOwner(true)
+            .isAnonymous(isAnonymous)
+            .ipAddress("127.0.0.1") // Owner's IP not available at creation time
+            .userAgent("browser") // Will be updated when owner actually joins
+            .browserName("unknown")
+            .browserVersion("unknown")
+            .osName("unknown")
+            .osVersion("unknown")
+            .joinedAt(LocalDateTime.now())
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
+        
+        participantSessionRepository.save(ownerParticipant);
+        
+        return savedSession;
     }
     
     /**
@@ -111,10 +134,17 @@ public class AdminDashboardService {
         Optional<ParticipantSession> existingParticipant = participantSessionRepository.findBySessionHistoryAndUserId(session, userId);
         
         if (existingParticipant.isPresent()) {
-            // Participant is re-joining - update their record
+            // Participant is re-joining - update their record with device info
             ParticipantSession participant = existingParticipant.get();
             participant.setJoinedAt(LocalDateTime.now());
             participant.setLeftAt(null); // Clear left time since they're joining again
+            // Update device info if provided
+            if (ipAddress != null) participant.setIpAddress(ipAddress);
+            if (userAgent != null) participant.setUserAgent(userAgent);
+            if (browserName != null) participant.setBrowserName(browserName);
+            if (browserVersion != null) participant.setBrowserVersion(browserVersion);
+            if (osName != null) participant.setOsName(osName);
+            if (osVersion != null) participant.setOsVersion(osVersion);
             participant.setUpdatedAt(LocalDateTime.now());
             return participantSessionRepository.save(participant);
         } else {
