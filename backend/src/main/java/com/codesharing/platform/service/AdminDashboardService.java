@@ -52,6 +52,15 @@ public class AdminDashboardService {
     }
     
     /**
+     * Get session by snippet ID
+     * Returns Optional for safe handling when session doesn't exist yet
+     */
+    @Transactional(readOnly = true)
+    public Optional<SessionHistory> getSessionBySnippetId(String snippetId) {
+        return sessionHistoryRepository.findBySnippetId(snippetId);
+    }
+    
+    /**
      * Get detailed session information for drill-down
      */
     @Transactional(readOnly = true)

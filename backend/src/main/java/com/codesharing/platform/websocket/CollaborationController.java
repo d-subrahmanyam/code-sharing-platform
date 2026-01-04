@@ -2,12 +2,16 @@ package com.codesharing.platform.websocket;
 
 import com.codesharing.platform.service.CollaborationService;
 import com.codesharing.platform.service.SnippetService;
+import com.codesharing.platform.service.AdminDashboardService;
+import com.codesharing.platform.entity.SessionHistory;
 import com.codesharing.platform.dto.SnippetDTO;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -19,12 +23,14 @@ import org.springframework.stereotype.Controller;
  * Handles STOMP messages for collaborative editing
  * Routes presence updates, typing indicators, and code changes
  */
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class CollaborationController {
 
   private final CollaborationService collaborationService;
   private final SnippetService snippetService;
+  private final AdminDashboardService adminDashboardService;
   private final SimpMessagingTemplate messagingTemplate;
 
   /**
@@ -38,6 +44,12 @@ public class CollaborationController {
   ) {
     String userId = payload.get("userId");
     String username = payload.get("username");
+    String ipAddress = payload.get("ipAddress");
+    String userAgent = payload.get("userAgent");
+    String browserName = payload.get("browserName");
+    String browserVersion = payload.get("browserVersion");
+    String osName = payload.get("osName");
+    String osVersion = payload.get("osVersion");
 
     collaborationService.joinSession(snippetId, userId, username);
 
@@ -46,43 +58,98 @@ public class CollaborationController {
       SnippetDTO snippet = snippetService.getSnippetById(snippetId);
       if (snippet != null && snippet.getAuthorId() != null) {
         collaborationService.setSessionOwner(snippetId, snippet.getAuthorId());
-        System.out.println("[Collaboration] Owner set from snippet: " + snippet.getAuthorId() + " for snippet " + snippetId);
+        log.info("[Collaboration] Owner set from snippet: {} for snippet {}", snippet.getAuthorId(), snippetId);
       } else {
-        System.out.println("[Collaboration] Snippet not found or has no author for: " + snippetId);
+        log.warn("[Collaboration] Snippet not found or has no author for: {}", snippetId);
       }
     } catch (Exception e) {
-      System.out.println("[Collaboration] Could not load snippet owner: " + e.getMessage());
+      log.error("[Collaboration] Could not load snippet owner: {}", e.getMessage(), e);
+    }
+
+    // Track participant in admin dashboard
+    try {
+      log.info("[Collaboration] Tracking participant join: snippetId={}, userId={}, username={}", 
+               snippetId, userId, username);
+      
+      // Get or create session history entry
+      Optional<SessionHistory> sessionOpt = adminDashboardService.getSessionBySnippetId(snippetId);
+      SessionHistory session;
+      
+      if (sessionOpt.isPresent()) {
+        session = sessionOpt.get();
+        log.info("[Collaboration] Found existing session for snippet {}", snippetId);
+      } else {
+        // Session wasn't created during snippet creation (shouldn't happen with our fix, but be safe)
+        SnippetDTO snippet = snippetService.getSnippetById(snippetId);
+        String ownerUsername = snippet != null && snippet.getAuthorId() != null ? 
+                              snippet.getAuthorId() : "anonymous";
+        Boolean isAnonymous = snippet != null && "anonymous".equals(snippet.getAuthorId());
+        
+        session = adminDashboardService.createSession(
+          snippetId,
+          snippet != null ? snippet.getAuthorId() : "anonymous",
+          ownerUsername,
+          null,
+          isAnonymous,
+          snippet != null ? snippet.getTitle() : "Untitled",
+          snippet != null ? snippet.getLanguage() : "unknown"
+        );
+        log.info("[Collaboration] Created session for snippet {} (retroactive)", snippetId);
+      }
+      
+      // Add participant to session
+      Boolean isOwner = userId.equals(session.getOwnerId());
+      Boolean isAnonymousUser = "anonymous".equals(userId);
+      
+      adminDashboardService.addParticipant(
+        session,
+        userId,
+        username,
+        isOwner,
+        isAnonymousUser,
+        ipAddress,
+        userAgent,
+        browserName,
+        browserVersion,
+        osName,
+        osVersion
+      );
+      
+      log.info("[Collaboration] Participant added to session: snippetId={}, userId={}, isOwner={}", 
+               snippetId, userId, isOwner);
+    } catch (Exception e) {
+      log.error("[Collaboration] Failed to track participant join for snippet {}: {}", 
+                snippetId, e.getMessage(), e);
     }
 
     // Broadcast updated presence to all subscribers
     List<Map<String, Object>> activeUsers = collaborationService.getActiveUsers(snippetId);
-    System.out.println("[Collaboration] Broadcasting presence for snippet " + snippetId + " with users:");
+    log.info("[Collaboration] Broadcasting presence for snippet {} with {} users", snippetId, activeUsers.size());
     activeUsers.forEach(u -> {
-      System.out.println("  - " + u.get("username") + " (owner: " + u.get("owner") + ")");
+      log.debug("[Collaboration]   - {} (owner: {})", u.get("username"), u.get("owner"));
     });
     
     // Fetch snippet title to send to joinee
     String snippetTitle = "";
-    System.out.println("[Collaboration] Starting snippet title fetch for snippetId: '" + snippetId + "'");
+    log.info("[Collaboration] Starting snippet title fetch for snippetId: '{}'", snippetId);
     try {
       SnippetDTO snippet = snippetService.getSnippetById(snippetId);
-      System.out.println("[Collaboration] Fetched snippet: " + (snippet != null ? "FOUND" : "NULL"));
+      log.info("[Collaboration] Fetched snippet: {}", snippet != null ? "FOUND" : "NULL");
       if (snippet != null) {
         String rawTitle = snippet.getTitle();
-        System.out.println("[Collaboration] Raw title from DTO: " + (rawTitle == null ? "NULL" : "'" + rawTitle + "'"));
+        log.debug("[Collaboration] Raw title from DTO: {}", rawTitle == null ? "NULL" : "'" + rawTitle + "'");
         snippetTitle = rawTitle != null ? rawTitle : "";
-        System.out.println("[Collaboration] Snippet title after processing: '" + snippetTitle + "'");
+        log.debug("[Collaboration] Snippet title after processing: '{}'", snippetTitle);
       } else {
-        System.out.println("[Collaboration] Snippet is NULL - cannot fetch title");
+        log.warn("[Collaboration] Snippet is NULL - cannot fetch title");
       }
     } catch (Exception e) {
-      System.out.println("[Collaboration] EXCEPTION fetching snippet title: " + e.getMessage());
-      e.printStackTrace();
+      log.error("[Collaboration] Exception fetching snippet title: {}", e.getMessage(), e);
     }
     
-    System.out.println("[Collaboration] FINAL: Sending presence with title: '" + snippetTitle + "' (length: " + snippetTitle.length() + ")");
+    log.info("[Collaboration] Final: Sending presence with title: '{}' (length: {})", snippetTitle, snippetTitle.length());
     PresenceMessage msg = new PresenceMessage("user_joined", userId, username, activeUsers, snippetTitle);
-    System.out.println("[Collaboration] PresenceMessage object created: type=" + msg.type + ", snippetTitle=" + msg.snippetTitle);
+    log.debug("[Collaboration] PresenceMessage object created: type={}, snippetTitle={}", msg.type, msg.snippetTitle);
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/presence",
       msg
@@ -99,35 +166,53 @@ public class CollaborationController {
     @Payload Map<String, String> payload
   ) {
     String userId = payload.get("userId");
+    String username = payload.get("username");
 
     collaborationService.leaveSession(snippetId, userId);
+
+    // Track participant departure in admin dashboard
+    try {
+      log.info("[Collaboration] Tracking participant departure: snippetId={}, userId={}", snippetId, userId);
+      
+      Optional<SessionHistory> sessionOpt = adminDashboardService.getSessionBySnippetId(snippetId);
+      if (sessionOpt.isPresent()) {
+        SessionHistory session = sessionOpt.get();
+        adminDashboardService.markParticipantLeft(session, userId);
+        log.info("[Collaboration] Participant marked as departed: snippetId={}, userId={}", snippetId, userId);
+      } else {
+        log.warn("[Collaboration] Session not found for departing participant: snippetId={}", snippetId);
+      }
+    } catch (Exception e) {
+      log.error("[Collaboration] Failed to track participant departure for snippet {}: {}", 
+                snippetId, e.getMessage(), e);
+    }
 
     // Broadcast updated presence to all subscribers
     List<Map<String, Object>> activeUsers = collaborationService.getActiveUsers(snippetId);
     
     // Fetch snippet title to send to remaining users
     String snippetTitle = "";
-    System.out.println("[Collaboration] Starting snippet title fetch for user_left on snippetId: '" + snippetId + "'");
+    log.info("[Collaboration] Starting snippet title fetch for user_left on snippetId: '{}'", snippetId);
     try {
       SnippetDTO snippet = snippetService.getSnippetById(snippetId);
-      System.out.println("[Collaboration] Fetched snippet: " + (snippet != null ? "FOUND" : "NULL"));
+      log.debug("[Collaboration] Fetched snippet: {}", snippet != null ? "FOUND" : "NULL");
       if (snippet != null) {
         String rawTitle = snippet.getTitle();
-        System.out.println("[Collaboration] Raw title from DTO: " + (rawTitle == null ? "NULL" : "'" + rawTitle + "'"));
+        log.debug("[Collaboration] Raw title from DTO: {}", rawTitle == null ? "NULL" : "'" + rawTitle + "'");
         snippetTitle = rawTitle != null ? rawTitle : "";
-        System.out.println("[Collaboration] Snippet title after processing: '" + snippetTitle + "'");
+        log.debug("[Collaboration] Snippet title after processing: '{}'", snippetTitle);
       } else {
-        System.out.println("[Collaboration] Snippet is NULL - cannot fetch title");
+        log.warn("[Collaboration] Snippet is NULL - cannot fetch title");
       }
     } catch (Exception e) {
-      System.out.println("[Collaboration] EXCEPTION fetching snippet title: " + e.getMessage());
-      e.printStackTrace();
+      log.error("[Collaboration] Exception fetching snippet title: {}", e.getMessage(), e);
     }
     
-    System.out.println("[Collaboration] FINAL user_left: Sending presence with title: '" + snippetTitle + "' (length: " + snippetTitle.length() + ")");
+    log.info("[Collaboration] Final user_left: Sending presence with title: '{}' (length: {})", 
+             snippetTitle, snippetTitle.length());
     messagingTemplate.convertAndSend(
       "/topic/snippet/" + snippetId + "/presence",
-      new PresenceMessage("user_left", userId, "", activeUsers, snippetTitle)
+      new PresenceMessage("user_left", userId, username != null ? username : "", activeUsers, snippetTitle)
     );
   }
 
