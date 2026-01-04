@@ -6,60 +6,75 @@ import com.codesharing.platform.entity.User;
 import com.codesharing.platform.entity.AdminUser;
 import com.codesharing.platform.repository.UserRepository;
 import com.codesharing.platform.repository.AdminUserRepository;
+import com.codesharing.platform.security.JwtUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class AuthService {
     private final UserRepository userRepository;
     private final AdminUserRepository adminUserRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
-    public AuthService(UserRepository userRepository, AdminUserRepository adminUserRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, AdminUserRepository adminUserRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.adminUserRepository = adminUserRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
     }
 
     public AuthPayload login(String email, String password) {
+        log.info("Login attempt for email: {}", email);
+        
         // First, try to authenticate as a regular user
         Optional<User> userOptional = userRepository.findByEmail(email);
         
         if (userOptional.isPresent()) {
+            log.info("User found in users table: {}", email);
             User user = userOptional.get();
             
             if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+                log.warn("Invalid password for user: {}", email);
                 return new AuthPayload(null, null, false, "Invalid password");
             }
 
-            String token = generateToken(user.getId());
+            String token = jwtUtil.generateToken(user.getUsername(), user.getRole().getValue());
             UserDTO userDTO = new UserDTO(user.getId(), user.getUsername(), user.getEmail(), user.getRole().getValue());
+            log.info("User login successful: {} with role: {}", email, user.getRole().getValue());
             
             return new AuthPayload(token, userDTO, true, "Login successful");
         }
         
+        log.info("User not found in users table, checking admin users table...");
         // If not found in regular users, try admin users
         Optional<AdminUser> adminUserOptional = adminUserRepository.findByEmail(email);
         
         if (adminUserOptional.isPresent()) {
+            log.info("Admin user found: {}", email);
             AdminUser adminUser = adminUserOptional.get();
             
             if (!passwordEncoder.matches(password, adminUser.getPasswordHash())) {
+                log.warn("Invalid password for admin user: {}", email);
                 return new AuthPayload(null, null, false, "Invalid password");
             }
 
-            String token = generateToken(adminUser.getId().toString());
             // AdminUser gets ADMIN role from their role entity
             String roleValue = adminUser.getRole() != null ? adminUser.getRole().getRoleType().name() : "ADMIN";
+            String token = jwtUtil.generateToken(adminUser.getUsername(), roleValue);
             UserDTO userDTO = new UserDTO(adminUser.getId().toString(), adminUser.getUsername(), adminUser.getEmail(), roleValue);
+            log.info("Admin user login successful: {} with role: {}", email, roleValue);
             
             return new AuthPayload(token, userDTO, true, "Login successful");
         }
         
+        log.warn("Login failed: User not found for email: {}", email);
         return new AuthPayload(null, null, false, "User not found");
     }
 
@@ -86,7 +101,7 @@ public class AuthService {
 
         userRepository.save(user);
 
-        String token = generateToken(user.getId());
+        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().getValue());
         UserDTO userDTO = new UserDTO(user.getId(), user.getUsername(), user.getEmail(), user.getRole().getValue());
         
         return new AuthPayload(token, userDTO, true, "Registration successful");
@@ -98,10 +113,5 @@ public class AuthService {
 
     public Optional<User> getUserByEmail(String email) {
         return userRepository.findByEmail(email);
-    }
-
-    private String generateToken(String userId) {
-        // Simple token generation - in production use JWT
-        return "token_" + userId + "_" + System.currentTimeMillis();
     }
 }

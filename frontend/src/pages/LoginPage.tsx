@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { AUTH_LOGIN_REQUEST, AUTH_REGISTER_REQUEST } from '../store/actionTypes'
 import { FiMail, FiLock, FiUser, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
 
@@ -11,6 +11,8 @@ import { FiMail, FiLock, FiUser, FiAlertCircle, FiCheckCircle } from 'react-icon
 const LoginPage: React.FC = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
+  const navigationRef = useRef(false)
   const { isAuthenticated, user } = useSelector((state: any) => state.auth || {})
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -24,15 +26,42 @@ const LoginPage: React.FC = () => {
 
   // Watch for successful login and redirect
   useEffect(() => {
+    console.log('🔍 LoginPage effect triggered')
+    console.log('  isAuthenticated:', isAuthenticated)
+    console.log('  user:', user)
+    console.log('  user.role:', user?.role)
+    console.log('  navigationRef.current:', navigationRef.current)
+    
+    // Don't navigate if we're already on the login page or navigation already triggered
+    if (navigationRef.current) {
+      console.log('⚠️ Navigation already triggered, skipping')
+      return
+    }
+    
     if (isAuthenticated && user) {
+      console.log('✅ User authenticated, checking role...')
+      navigationRef.current = true
+      
       // Redirect to admin dashboard if user is admin, otherwise home
       if (user.role === 'ADMIN') {
-        navigate('/admin')
+        console.log('👑 Admin user detected, redirecting to /admin')
+        navigate('/admin', { replace: true })
       } else {
-        navigate('/')
+        console.log('👤 Regular user detected, redirecting to /')
+        navigate('/', { replace: true })
       }
+    } else {
+      console.log('⏳ Waiting for authentication...')
     }
-  }, [isAuthenticated, user, navigate])
+  }, [isAuthenticated, user?.role, user?.id])
+
+  // Reset navigation flag when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      console.log('🔄 User logged out, resetting navigation flag')
+      navigationRef.current = false
+    }
+  }, [isAuthenticated])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target

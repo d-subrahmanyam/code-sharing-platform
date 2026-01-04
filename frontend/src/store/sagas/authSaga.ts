@@ -69,29 +69,45 @@ const VERIFY_TOKEN_QUERY = `
  */
 function* loginSaga(action: any) {
   try {
+    console.log('🔐 Login attempt for:', action.payload.email)
     const response = yield call(
       graphqlQuery,
       LOGIN_MUTATION,
       action.payload as LoginCredentials
     )
     
+    console.log('📡 Full response:', response)
+    console.log('📡 Response keys:', Object.keys(response || {}))
+    
     if (response.errors) {
+      console.error('❌ GraphQL error:', response.errors)
       throw new Error(response.errors[0].message)
     }
 
     const { data } = response
-    if (data.login.success) {
+    console.log('📦 data:', data)
+    console.log('📦 data.login:', data?.login)
+    console.log('📦 data.login.success:', data?.login?.success)
+    console.log('📦 data.login.user:', data?.login?.user)
+    console.log('📦 data.login.token:', data?.login?.token)
+    console.log('🔑 User role:', data?.login?.user?.role)
+    
+    if (data && data.login && data.login.success) {
+      console.log('✅ Login successful, dispatching AUTH_LOGIN_SUCCESS')
+      console.log('   Dispatching payload:', data.login)
       yield put({
         type: AUTH_LOGIN_SUCCESS,
         payload: data.login,
       })
     } else {
+      console.error('❌ Login failed:', data?.login?.message)
       yield put({
         type: AUTH_LOGIN_FAILURE,
-        payload: data.login.message || 'Login failed',
+        payload: data?.login?.message || 'Login failed',
       })
     }
   } catch (error: any) {
+    console.error('❌ Login saga error:', error)
     yield put({
       type: AUTH_LOGIN_FAILURE,
       payload: error.message || 'Login failed',
