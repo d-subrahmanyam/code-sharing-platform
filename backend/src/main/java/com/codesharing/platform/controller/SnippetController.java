@@ -95,7 +95,7 @@ public class SnippetController {
  * Handles REST API requests for snippet sharing and lookup functionality
  */
 @RestController
-@RequestMapping("/api/snippets")
+@RequestMapping("/snippets")
 class SnippetSharingController {
     private final SnippetService snippetService;
 

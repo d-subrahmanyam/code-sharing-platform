@@ -398,6 +398,41 @@ export class WebSocketService {
   }
 
   /**
+   * Subscribe to security events (copy/paste attempts)
+   */
+  subscribeToSecurityEvents(
+    snippetId: string,
+    callback: WebSocketCallback<any>
+  ): void {
+    const topic = `/topic/snippet/${snippetId}/security-events`
+    console.log('[WebSocketService] subscribeToSecurityEvents called for snippetId:', snippetId, 'topic:', topic)
+    console.log('[WebSocketService] Callback function provided:', !!callback, 'type:', typeof callback)
+    
+    this.unsubscribeFromTopic(topic)
+
+    this.ensureConnected().then(() => {
+      console.log('[WebSocketService] ✓ Connection ensured, now subscribing to topic:', topic)
+      const subscription = this.stompClient!.subscribe(topic, (message) => {
+        console.log('[WebSocketService] 🎯 SECURITY EVENT RECEIVED on topic:', topic)
+        console.log('[WebSocketService] Raw message body:', message.body)
+        try {
+          const data = JSON.parse(message.body)
+          console.log('[WebSocketService] ✓ Parsed JSON data:', data)
+          console.log('[WebSocketService] About to invoke callback with data:', data)
+          callback(data)
+          console.log('[WebSocketService] ✓ Callback invoked successfully')
+        } catch (error) {
+          console.error('[WebSocketService] ✗ Error parsing security event message:', error, 'body:', message.body)
+        }
+      })
+      console.log('[WebSocketService] ✓ Successfully subscribed to security events topic:', topic)
+      this.subscriptions.set(topic, subscription)
+    }).catch((error) => {
+      console.error('[WebSocketService] ✗ Failed to ensure connection for security events subscription:', error)
+    })
+  }
+
+  /**
    * Unsubscribe from a specific topic
    */
   private unsubscribeFromTopic(topic: string): void {
