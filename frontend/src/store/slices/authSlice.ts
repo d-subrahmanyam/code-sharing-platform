@@ -1,6 +1,6 @@
 /**
  * Auth Reducer
- * Manages authentication state including user login, registration, and token
+ * Manages authentication state including user login, registration, token verification, and logout
  */
 import {
   AUTH_LOGIN_REQUEST,
@@ -10,6 +10,9 @@ import {
   AUTH_REGISTER_REQUEST,
   AUTH_REGISTER_SUCCESS,
   AUTH_REGISTER_FAILURE,
+  AUTH_VERIFY_REQUEST,
+  AUTH_VERIFY_SUCCESS,
+  AUTH_VERIFY_FAILURE,
 } from '../actionTypes'
 import type { AuthState } from '../../types/redux'
 

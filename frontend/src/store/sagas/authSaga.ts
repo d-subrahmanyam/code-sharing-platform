@@ -1,6 +1,6 @@
 /**
  * Auth Saga
- * Handles authentication side effects (login, registration, logout)
+ * Handles authentication side effects (login, registration, logout, token verification)
  */
 import { call, put, takeEvery } from 'redux-saga/effects'
 import {
@@ -10,6 +10,9 @@ import {
   AUTH_REGISTER_REQUEST,
   AUTH_REGISTER_SUCCESS,
   AUTH_REGISTER_FAILURE,
+  AUTH_VERIFY_REQUEST,
+  AUTH_VERIFY_SUCCESS,
+  AUTH_VERIFY_FAILURE,
 } from '../actionTypes'
 import { graphqlQuery } from '@api/client'
 import type { LoginCredentials, RegisterCredentials } from '../../types/redux'
@@ -34,6 +37,21 @@ const REGISTER_MUTATION = `
   mutation Register($username: String!, $email: String!, $password: String!) {
     register(username: $username, email: $email, password: $password) {
       token
+      user {
+        id
+        username
+        email
+        role
+      }
+      success
+      message
+    }
+  }
+`
+
+const VERIFY_TOKEN_QUERY = `
+  query VerifyToken {
+    verifyToken {
       user {
         id
         username
@@ -117,10 +135,47 @@ function* registerSaga(action: any) {
 }
 
 /**
+ * Verify token saga worker function
+ * Validates the stored auth token and restores user information
+ */
+function* verifySaga() {
+  try {
+    const response = yield call(graphqlQuery, VERIFY_TOKEN_QUERY, {})
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message)
+    }
+
+    const { data } = response
+    if (data.verifyToken.success) {
+      yield put({
+        type: AUTH_VERIFY_SUCCESS,
+        payload: {
+          token: localStorage.getItem('authToken'),
+          user: data.verifyToken.user,
+          success: true,
+        },
+      })
+    } else {
+      yield put({
+        type: AUTH_VERIFY_FAILURE,
+        payload: data.verifyToken.message || 'Token verification failed',
+      })
+    }
+  } catch (error: any) {
+    yield put({
+      type: AUTH_VERIFY_FAILURE,
+      payload: error.message || 'Token verification failed',
+    })
+  }
+}
+
+/**
  * Root auth saga
  */
 export default function* authSaga() {
   yield takeEvery(AUTH_LOGIN_REQUEST, loginSaga)
   yield takeEvery(AUTH_REGISTER_REQUEST, registerSaga)
+  yield takeEvery(AUTH_VERIFY_REQUEST, verifySaga)
 }
 
