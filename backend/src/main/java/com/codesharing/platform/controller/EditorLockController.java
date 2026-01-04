@@ -4,6 +4,7 @@ import com.codesharing.platform.entity.EditorLock;
 import com.codesharing.platform.entity.SecurityEvent;
 import com.codesharing.platform.service.EditorLockService;
 import com.codesharing.platform.service.SecurityEventService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -15,6 +16,7 @@ import java.util.Map;
 /**
  * REST API Controller for Editor Lock and Security Events
  */
+@Slf4j
 @RestController
 @RequestMapping("/editor")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
@@ -133,12 +135,11 @@ public class EditorLockController {
             
             // Only record to DB if all IDs are valid numbers
             event = securityEventService.recordEvent(snippetIdLong, sessionIdLong, userIdLong, username, eventType);
-            System.out.println("[EditorLock] Security event recorded to database: " + eventType + " from " + username);
+            log.info("[EditorLock] Security event recorded to database: {} from {}", eventType, username);
         } catch (NumberFormatException e) {
             // IDs are not valid numbers (e.g., 'new', 'new-snippet-...', 'unknown')
             // This happens when snippet is still being created
-            System.out.println("[EditorLock] Security event not recorded to DB (invalid IDs): snippetId=" + snippetId + 
-                              ", sessionId=" + sessionId + ", userId=" + userId);
+            log.debug("[EditorLock] Security event not recorded to DB (invalid IDs): snippetId={}, sessionId={}, userId={}", snippetId, sessionId, userId);
             // We'll still broadcast the notification even if we can't record to DB
         }
         
@@ -158,9 +159,9 @@ public class EditorLockController {
                 notification
             );
             
-            System.out.println("[EditorLock] Security event broadcast: " + eventType + " from " + username + " for snippet " + snippetId);
+            log.info("[EditorLock] Security event broadcast: {} from {} for snippet {}", eventType, username, snippetId);
         } catch (Exception e) {
-            System.err.println("[EditorLock] Failed to broadcast security event: " + e.getMessage());
+            log.error("[EditorLock] Failed to broadcast security event: {}", e.getMessage(), e);
             // Don't fail the request if broadcast fails
         }
         

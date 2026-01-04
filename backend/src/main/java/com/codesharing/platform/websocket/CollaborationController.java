@@ -225,8 +225,8 @@ public class CollaborationController {
     @DestinationVariable String snippetId,
     @Payload CodeChangeMessage codeChange
   ) {
-    System.out.println("[CodeChange] Received code change from " + codeChange.username + " for snippet " + snippetId);
-    System.out.println("[CodeChange] Code length: " + (codeChange.code != null ? codeChange.code.length() : 0) + " Language: " + codeChange.language);
+    log.info("[CodeChange] Received code change from {} for snippet {}", codeChange.username, snippetId);
+    log.debug("[CodeChange] Code length: {} Language: {}", codeChange.code != null ? codeChange.code.length() : 0, codeChange.language);
     
     // Broadcast code change to all subscribers (except sender if needed)
     messagingTemplate.convertAndSend(
@@ -234,7 +234,7 @@ public class CollaborationController {
       codeChange
     );
     
-    System.out.println("[CodeChange] Broadcasted to /topic/snippet/" + snippetId + "/code");
+    log.debug("[CodeChange] Broadcasted to /topic/snippet/{}/code", snippetId);
   }
 
   /**
@@ -246,7 +246,7 @@ public class CollaborationController {
     @DestinationVariable String snippetId,
     @Payload TypingIndicatorMessage typing
   ) {
-    System.out.println("[Typing] User " + typing.userId + " is " + (typing.isTyping ? "typing" : "not typing") + " in snippet " + snippetId);
+    log.debug("[Typing] User {} is {} in snippet {}", typing.userId, typing.isTyping ? "typing" : "not typing", snippetId);
     
     collaborationService.setUserTyping(snippetId, typing.userId, typing.isTyping);
 
@@ -257,7 +257,7 @@ public class CollaborationController {
       new TypingStatusMessage(typingUsers)
     );
     
-    System.out.println("[Typing] Broadcasting " + typingUsers.size() + " typing users to /topic/snippet/" + snippetId + "/typing");
+    log.debug("[Typing] Broadcasting {} typing users to /topic/snippet/{}/typing", typingUsers.size(), snippetId);
   }
 
   /**
@@ -284,7 +284,7 @@ public class CollaborationController {
     @DestinationVariable String snippetId,
     @Payload MetadataUpdateMessage metadata
   ) {
-    System.out.println("[Metadata] Received metadata update from user " + metadata.userId + " for snippet " + snippetId);
+    log.info("[Metadata] Received metadata update from user {} for snippet {}", metadata.userId, snippetId);
     
     // Broadcast metadata update to all subscribers
     messagingTemplate.convertAndSend(
@@ -292,7 +292,7 @@ public class CollaborationController {
       metadata
     );
     
-    System.out.println("[Metadata] Broadcasted to /topic/snippet/" + snippetId + "/metadata");
+    log.debug("[Metadata] Broadcasted to /topic/snippet/{}/metadata", snippetId);
   }
 
   /**
@@ -308,7 +308,7 @@ public class CollaborationController {
     String userId = payload.get("userId");
     String username = payload.get("username");
     
-    System.out.println("[Sync] User " + username + " (" + userId + ") requesting state sync for snippet " + snippetId);
+    log.info("[Sync] User {} ({}) requesting state sync for snippet {}", username, userId, snippetId);
     
     // In a real-time collaboration, the owner's state is in memory on the frontend.
     // We send an empty state sync response, and the frontend will handle broadcasting
@@ -326,7 +326,7 @@ public class CollaborationController {
       syncMessage
     );
     
-    System.out.println("[Sync] Broadcasted sync request from " + username + " to all subscribers");
+    log.debug("[Sync] Broadcasted sync request from {} to all subscribers", username);
   }
 
   /**
