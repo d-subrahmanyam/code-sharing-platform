@@ -19,23 +19,18 @@ const AdminPage: React.FC = () => {
 
   // Check authentication and admin role
   useEffect(() => {
-    console.log('🔐 AdminPage effect: checking auth', { isAuthenticated, userRole: user?.role })
-
     if (!isAuthenticated) {
-      console.log('❌ Not authenticated, redirecting to login')
       navigate('/login')
       return
     }
 
     // Check if user is admin
     if (user?.role !== 'ADMIN') {
-      console.log('❌ User is not admin, setting error')
       setError('You do not have permission to access the admin dashboard')
       setLoading(false)
       return
     }
 
-    console.log('✅ User is authenticated admin, loading dashboard data')
     loadDashboardData()
   }, [isAuthenticated, user?.role, user?.id])
 
@@ -44,24 +39,16 @@ const AdminPage: React.FC = () => {
       setLoading(true)
       setError(null)
 
-      console.log('📊 Loading admin dashboard data...')
-
       // Fetch active sessions
       const sessionsRes = await apiClient.get('/admin/sessions')
-      console.log('✅ Sessions loaded:', sessionsRes.data)
       setActiveSessions(sessionsRes.data || [])
 
       // Fetch health status
       const healthRes = await apiClient.get('/admin/health')
-      console.log('✅ Health status loaded:', healthRes.data)
       setHealthStatus(healthRes.data)
     } catch (err: any) {
-      console.error('❌ Error loading admin dashboard:', err)
-      
       // Check if it's an authentication error
       if (err.response?.status === 401) {
-        console.warn('⚠️ Authentication token invalid or expired, redirecting to login')
-        // Don't set error state, let the 401 redirect handle it
         // The apiClient response interceptor will redirect to login
         return
       }

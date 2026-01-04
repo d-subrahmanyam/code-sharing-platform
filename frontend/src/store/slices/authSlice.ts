@@ -42,9 +42,6 @@ export default function authReducer(
   state: AuthState = initialState,
   action: any
 ): AuthState {
-  console.log('📝 authReducer action:', action.type)
-  console.log('📦 authReducer payload:', action.payload)
-  
   switch (action.type) {
     case AUTH_LOGIN_REQUEST:
     case AUTH_REGISTER_REQUEST:
@@ -56,11 +53,6 @@ export default function authReducer(
 
     case AUTH_LOGIN_SUCCESS:
     case AUTH_REGISTER_SUCCESS:
-      console.log('✅ AUTH_LOGIN_SUCCESS received in reducer')
-      console.log('   Payload:', action.payload)
-      console.log('   Payload.user:', action.payload?.user)
-      console.log('   Payload.token:', action.payload?.token)
-      
       localStorage.setItem('authToken', action.payload.token)
       localStorage.setItem('authUser', JSON.stringify(action.payload.user))
       const newState = {
@@ -71,8 +63,6 @@ export default function authReducer(
         loading: false,
         error: null,
       }
-      console.log('   New state.user:', newState.user)
-      console.log('   User stored in localStorage')
       return newState
 
     case AUTH_LOGIN_FAILURE:

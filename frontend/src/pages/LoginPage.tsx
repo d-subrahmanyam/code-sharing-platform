@@ -26,39 +26,26 @@ const LoginPage: React.FC = () => {
 
   // Watch for successful login and redirect
   useEffect(() => {
-    console.log('🔍 LoginPage effect triggered')
-    console.log('  isAuthenticated:', isAuthenticated)
-    console.log('  user:', user)
-    console.log('  user.role:', user?.role)
-    console.log('  navigationRef.current:', navigationRef.current)
-    
     // Don't navigate if we're already on the login page or navigation already triggered
     if (navigationRef.current) {
-      console.log('⚠️ Navigation already triggered, skipping')
       return
     }
     
     if (isAuthenticated && user) {
-      console.log('✅ User authenticated, checking role...')
       navigationRef.current = true
       
       // Redirect to admin dashboard if user is admin, otherwise home
       if (user.role === 'ADMIN') {
-        console.log('👑 Admin user detected, redirecting to /admin')
         navigate('/admin', { replace: true })
       } else {
-        console.log('👤 Regular user detected, redirecting to /')
         navigate('/', { replace: true })
       }
-    } else {
-      console.log('⏳ Waiting for authentication...')
     }
   }, [isAuthenticated, user?.role, user?.id])
 
   // Reset navigation flag when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
-      console.log('🔄 User logged out, resetting navigation flag')
       navigationRef.current = false
     }
   }, [isAuthenticated])
