@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { FiSettings, FiUsers, FiActivity, FiAlertCircle, FiCheck, FiX } from 'react-icons/fi'
+import { FiSettings, FiUsers, FiActivity, FiAlertCircle, FiCheck, FiX, FiChevronLeft, FiChevronRight, FiExternalLink } from 'react-icons/fi'
 import apiClient from '../api/client'
 
 /**
@@ -13,9 +13,10 @@ const AdminPage: React.FC = () => {
   const { user, isAuthenticated } = useSelector((state: any) => state.auth || {})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeSessions, setActiveSessions] = useState([])
+  const [sessionsData, setSessionsData] = useState<any>(null)
   const [healthStatus, setHealthStatus] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'users'>('overview')
+  const [currentPage, setCurrentPage] = useState(0)
 
   // Check authentication and admin role
   useEffect(() => {
@@ -32,16 +33,22 @@ const AdminPage: React.FC = () => {
     }
 
     loadDashboardData()
-  }, [isAuthenticated, user?.role, user?.id])
+  }, [isAuthenticated, user?.role, user?.id, currentPage])
 
   const loadDashboardData = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // Fetch active sessions
-      const sessionsRes = await apiClient.get('/admin/sessions')
-      setActiveSessions(sessionsRes.data || [])
+      // Fetch sessions with pagination (25 per page)
+      const sessionsRes = await apiClient.get('/admin/sessions', {
+        params: {
+          page: currentPage,
+          size: 25,
+          sort: 'createdAt,desc'
+        }
+      })
+      setSessionsData(sessionsRes.data || {})
 
       // Fetch health status
       const healthRes = await apiClient.get('/admin/health')
@@ -183,12 +190,12 @@ const AdminPage: React.FC = () => {
 
               {/* Active Sessions Card */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Active Sessions</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Total Sessions</h3>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {activeSessions.length}
+                  {sessionsData?.totalElements || 0}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                  Collaborative editing sessions
+                  All collaborative sessions
                 </p>
               </div>
 
@@ -208,44 +215,108 @@ const AdminPage: React.FC = () => {
           {activeTab === 'sessions' && (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Active Sessions</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Sessions</h3>
               </div>
-              {activeSessions.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white">
-                          Session ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white">
-                          Participants
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white">
-                          Started
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {activeSessions.map((session: any) => (
-                        <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
-                            {session.id}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
-                            {session.participantCount || 0}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                            {new Date(session.startedAt).toLocaleString()}
-                          </td>
+              {sessionsData?.content && sessionsData.content.length > 0 ? (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white">
+                            Session ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white">
+                            Participants
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white">
+                            Created
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-900 dark:text-white">
+                            Actions
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {sessionsData.content.map((session: any) => (
+                          <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            <td className="px-6 py-4 text-sm">
+                              <button
+                                onClick={() => window.open(`/session/${session.snippetId}`, '_blank')}
+                                className="text-blue-600 dark:text-blue-400 hover:underline font-mono flex items-center gap-2 group"
+                              >
+                                {session.snippetId}
+                                <FiExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
+                              {session.participantCount || 0}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                              {new Date(session.createdAt).toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 text-sm">
+                              <button
+                                onClick={() => window.open(`/session/${session.snippetId}`, '_blank')}
+                                className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs font-semibold hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                              >
+                                Open
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Showing {sessionsData.content.length} of {sessionsData.totalElements} sessions
+                      {sessionsData.totalPages > 0 && ` (Page ${currentPage + 1} of ${sessionsData.totalPages})`}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                        disabled={currentPage === 0}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Previous page"
+                      >
+                        <FiChevronLeft className="w-5 h-5" />
+                      </button>
+                      <div className="flex items-center gap-2">
+                        {Array.from({ length: Math.min(5, sessionsData.totalPages) }).map((_, i) => {
+                          const pageNum = i
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white'
+                                  : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {pageNum + 1}
+                            </button>
+                          )
+                        })}
+                        {sessionsData.totalPages > 5 && <span className="text-gray-600 dark:text-gray-400">...</span>}
+                      </div>
+                      <button
+                        onClick={() => setCurrentPage(Math.min(sessionsData.totalPages - 1, currentPage + 1))}
+                        disabled={currentPage >= sessionsData.totalPages - 1}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Next page"
+                      >
+                        <FiChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="px-6 py-8 text-center">
-                  <p className="text-gray-600 dark:text-gray-400">No active sessions</p>
+                  <p className="text-gray-600 dark:text-gray-400">No sessions found</p>
                 </div>
               )}
             </div>
