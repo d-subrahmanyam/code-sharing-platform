@@ -776,6 +776,30 @@ const EditorPage: React.FC<EditorPageProps> = ({ isOwnerFlow = false, isJoineeFl
     }
   }, [])
 
+  // When owner joins and has code/metadata loaded, broadcast initial state to waiting joinee
+  // This prevents joinee from hanging on "Waiting for owner to share their code"
+  const ownerInitialSendRef = useRef<boolean>(false)
+  useEffect(() => {
+    if (
+      isOwner &&
+      formData.code &&
+      activeUsers.length > 1 && // At least owner + 1 joinee
+      !ownerInitialSendRef.current // Only send once
+    ) {
+      console.log('[EditorPage] Owner initial broadcast: sending code to joinee', {
+        codeLength: formData.code.length,
+        language: formData.language,
+        activeUsersCount: activeUsers.length,
+      })
+      
+      ownerInitialSendRef.current = true
+      
+      // Send code change to broadcast initial state
+      sendCodeChange(formData.code, formData.language)
+      console.log('[EditorPage] ✓ Owner initial code broadcasted')
+    }
+  }, [isOwner, formData.code, formData.language, activeUsers.length, sendCodeChange])
+
   // Track user presence in the snippet
   useEffect(() => {
     // WebSocket handles presence tracking
