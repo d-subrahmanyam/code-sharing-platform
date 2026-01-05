@@ -18,6 +18,7 @@ export function useOwnerJoineeSession({
   isNew,
   directSnippetId,
   tinyCode,
+  isOwnerFlow,
 }: {
   userId: string | null;
   activeUsers: Array<{ id: string; username: string; timestamp: Date; owner?: boolean }>;
@@ -25,6 +26,7 @@ export function useOwnerJoineeSession({
   isNew: boolean;
   directSnippetId?: string;
   tinyCode?: string;
+  isOwnerFlow?: boolean;
 }) {
   const location = useLocation()
 
@@ -34,6 +36,11 @@ export function useOwnerJoineeSession({
 
   // Determine if current user is owner
   const isOwner = useMemo(() => {
+    // HIGHEST PRIORITY: Check isOwnerFlow prop (from OwnerEditorPage)
+    if (isOwnerFlow) {
+      return true
+    }
+
     // HIGHEST PRIORITY: Check URL route - /start indicates owner session
     if (isOwnerSession) {
       return true
@@ -69,7 +76,7 @@ export function useOwnerJoineeSession({
     }
 
     return false
-  }, [isOwnerSession, isJoineeSession, activeUsers, userIdProp, snippetOwnerId, isNew, directSnippetId, tinyCode])
+  }, [isOwnerFlow, isOwnerSession, isJoineeSession, activeUsers, userIdProp, snippetOwnerId, isNew, directSnippetId, tinyCode])
 
   // Debug logging for owner detection
   useEffect(() => {

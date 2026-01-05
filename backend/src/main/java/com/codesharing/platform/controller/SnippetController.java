@@ -2,6 +2,7 @@ package com.codesharing.platform.controller;
 
 import com.codesharing.platform.dto.SnippetDTO;
 import com.codesharing.platform.service.SnippetService;
+import com.codesharing.platform.service.AdminDashboardService;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
@@ -11,17 +12,21 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Controller
 public class SnippetController {
     private final SnippetService snippetService;
+    private final AdminDashboardService adminDashboardService;
 
-    public SnippetController(SnippetService snippetService) {
+    public SnippetController(SnippetService snippetService, AdminDashboardService adminDashboardService) {
         this.snippetService = snippetService;
+        this.adminDashboardService = adminDashboardService;
     }
 
     @QueryMapping
@@ -63,7 +68,36 @@ public class SnippetController {
         String userId = authorId != null ? authorId : "anonymous";
         List<String> tagList = tags != null ? tags : new java.util.ArrayList<>();
         boolean isPublicFlag = isPublic != null ? isPublic : true;
-        return snippetService.createSnippet(userId, title, description, code, language, tagList, isPublicFlag);
+        
+        // Create the snippet
+        SnippetDTO snippet = snippetService.createSnippet(userId, title, description, code, language, tagList, isPublicFlag);
+        
+        // Track session creation for admin dashboard
+        try {
+            String ownerUsername = userId.equals("anonymous") ? "Anonymous" : userId;
+            Boolean isAnonymous = userId.equals("anonymous");
+            
+            log.info("[SnippetController] Creating session for snippet: {}, owner: {}, anonymous: {}", 
+                     snippet.getId(), ownerUsername, isAnonymous);
+            
+            adminDashboardService.createSession(
+                snippet.getId(),
+                userId,
+                ownerUsername,
+                null, // email not available at snippet creation
+                isAnonymous,
+                title,
+                language
+            );
+            
+            log.info("[SnippetController] Session created for snippet: {}", snippet.getId());
+        } catch (Exception e) {
+            // Log but don't fail the snippet creation if session tracking fails
+            log.error("[SnippetController] Failed to create session for snippet {}: {}", 
+                      snippet.getId(), e.getMessage(), e);
+        }
+        
+        return snippet;
     }
 
     @MutationMapping
@@ -95,7 +129,7 @@ public class SnippetController {
  * Handles REST API requests for snippet sharing and lookup functionality
  */
 @RestController
-@RequestMapping("/api/snippets")
+@RequestMapping("/snippets")
 class SnippetSharingController {
     private final SnippetService snippetService;
 

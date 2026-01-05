@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage'
 import EditorPage from './pages/EditorPage'
 import OwnerEditorPage from './pages/OwnerEditorPage'
 import JoineeEditorPage from './pages/JoineeEditorPage'
+import AdminPage from './pages/AdminPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 import Navbar from './components/Navbar'
@@ -34,6 +35,7 @@ function App() {
                 <Route path="/editor/:snippetId" element={<OwnerEditorPage />} />
                 <Route path="/start/:tinyCode" element={<OwnerEditorPage />} />
                 <Route path="/join/:tinyCode" element={<JoineeEditorPage />} />
+                <Route path="/admin" element={<AdminPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>

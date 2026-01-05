@@ -1,6 +1,6 @@
 /**
  * Auth Reducer
- * Manages authentication state including user login, registration, and token
+ * Manages authentication state including user login, registration, token verification, and logout
  */
 import {
   AUTH_LOGIN_REQUEST,
@@ -10,12 +10,26 @@ import {
   AUTH_REGISTER_REQUEST,
   AUTH_REGISTER_SUCCESS,
   AUTH_REGISTER_FAILURE,
+  AUTH_VERIFY_REQUEST,
+  AUTH_VERIFY_SUCCESS,
+  AUTH_VERIFY_FAILURE,
 } from '../actionTypes'
 import type { AuthState } from '../../types/redux'
 
+// Helper to get user from localStorage
+const getStoredUser = () => {
+  try {
+    const userJson = localStorage.getItem('authUser')
+    return userJson ? JSON.parse(userJson) : null
+  } catch (e) {
+    console.warn('Failed to parse stored user:', e)
+    return null
+  }
+}
+
 const initialState: AuthState = {
   isAuthenticated: !!localStorage.getItem('authToken'),
-  user: null,
+  user: getStoredUser(),
   token: localStorage.getItem('authToken'),
   loading: false,
   error: null,
@@ -40,7 +54,8 @@ export default function authReducer(
     case AUTH_LOGIN_SUCCESS:
     case AUTH_REGISTER_SUCCESS:
       localStorage.setItem('authToken', action.payload.token)
-      return {
+      localStorage.setItem('authUser', JSON.stringify(action.payload.user))
+      const newState = {
         ...state,
         isAuthenticated: true,
         user: action.payload.user,
@@ -48,6 +63,7 @@ export default function authReducer(
         loading: false,
         error: null,
       }
+      return newState
 
     case AUTH_LOGIN_FAILURE:
     case AUTH_REGISTER_FAILURE:
@@ -59,6 +75,7 @@ export default function authReducer(
 
     case AUTH_LOGOUT:
       localStorage.removeItem('authToken')
+      localStorage.removeItem('authUser')
       return {
         ...state,
         isAuthenticated: false,
